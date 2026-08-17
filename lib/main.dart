@@ -49,6 +49,7 @@ void main() async {
   
   // 3. SERVICE & REPO CREATION
   final firebaseService = FirebaseService();
+  await firebaseService.ensureAuthenticatedSession();
   final groupRepo = GroupRepository(firebaseService);
   final txRepo = TransactionRepository(firebaseService);
   final reportService = ReportService(firebaseService);

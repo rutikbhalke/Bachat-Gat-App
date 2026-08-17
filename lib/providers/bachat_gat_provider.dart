@@ -33,12 +33,21 @@ class BachatGatProvider extends ChangeNotifier {
   Stream<List<Member>>? _membersStream;
   Stream<List<Loan>>? _loansStream;
 
-  // --- Reports ---
+  // --- Reports & Statements ---
   Future<MemberMonthlyReport> getMemberReport(Member member, int month, int year) =>
       _reportService.getMemberMonthlyReport(groupId: groupId, member: member, month: month, year: year);
 
   Future<GroupMonthlyReport> getGroupReport(String groupName, int month, int year) =>
       _reportService.getGroupMonthlyReport(groupId: groupId, groupName: groupName, month: month, year: year);
+
+  Future<List<PendingMemberReport>> getPendingReport({int? month, int? year, String? memberId}) =>
+      _reportService.getPendingReport(groupId: groupId, month: month, year: year, memberId: memberId);
+
+  Future<List<LoanReportItem>> getLoanReport({LoanStatus? statusFilter}) =>
+      _reportService.getLoanReport(groupId: groupId, statusFilter: statusFilter);
+
+  Future<List<MemberLedgerEntry>> getMemberLedger(String memberId) =>
+      _reportService.getMemberLedger(groupId: groupId, memberId: memberId);
 
   // --- Group & Dashboard ---
   Stream<BachatGatGroup?> watchGroup() {
@@ -46,16 +55,25 @@ class BachatGatProvider extends ChangeNotifier {
     return _groupStream!;
   }
 
-  Stream<List<AppTransaction>> watchRecentActivities() {
-    _recentActivitiesStream ??= _txRepo.watchRecentActivities(groupId).asBroadcastStream();
+  Future<void> updateGroupSettings({String? name, double? monthlyTarget, double? monthlyContributionAmount}) =>
+      _groupRepo.updateGroupSettings(groupId, name: name, monthlyTarget: monthlyTarget, monthlyContributionAmount: monthlyContributionAmount);
+
+  Stream<List<AppTransaction>> watchRecentActivities({int limit = 20}) {
+    _recentActivitiesStream ??= _txRepo.watchRecentActivities(groupId, limit: limit).asBroadcastStream();
     return _recentActivitiesStream!;
   }
 
   // --- Members ---
-  Stream<List<Member>> watchMembers() {
-    _membersStream ??= _groupRepo.watchMembers(groupId).asBroadcastStream();
+  Stream<List<Member>> watchMembers({bool activeOnly = true}) {
+    _membersStream ??= _groupRepo.watchMembers(groupId, activeOnly: activeOnly).asBroadcastStream();
     return _membersStream!;
   }
+
+  Future<List<Member>> getMembers({bool activeOnly = true}) =>
+      _groupRepo.getMembers(groupId, activeOnly: activeOnly);
+
+  Future<Member?> getMember(String memberId) =>
+      _groupRepo.getMember(groupId, memberId);
   
   Future<void> addMember(Member member) => _groupRepo.addMember(member);
   Future<void> updateMember(Member member) => _groupRepo.updateMember(member);
@@ -65,6 +83,9 @@ class BachatGatProvider extends ChangeNotifier {
   Stream<List<MonthlyContribution>> watchContributions({String? memberId}) {
     return _txRepo.watchContributions(groupId, memberId: memberId);
   }
+
+  Future<List<MonthlyContribution>> getContributions({String? memberId, int? month, int? year}) =>
+      _txRepo.getContributions(groupId, memberId: memberId, month: month, year: year);
 
   Future<void> recordContribution(
     MonthlyContribution contribution,
@@ -88,8 +109,14 @@ class BachatGatProvider extends ChangeNotifier {
     return _txRepo.watchLoans(groupId, memberId: memberId);
   }
 
+  Future<List<Loan>> getLoans({String? memberId, LoanStatus? status}) =>
+      _txRepo.getLoans(groupId, memberId: memberId, status: status);
+
   Stream<List<LoanRepayment>> watchRepayments({String? loanId, String? memberId}) => 
       _txRepo.watchRepayments(groupId, loanId: loanId, memberId: memberId);
+
+  Future<List<LoanRepayment>> getRepayments({String? loanId, String? memberId, int? month, int? year}) =>
+      _txRepo.getRepayments(groupId, loanId: loanId, memberId: memberId, month: month, year: year);
 
   Future<void> issueLoan(Loan loan, AppTransaction tx) => 
       _txRepo.issueLoan(groupId, loan, tx);

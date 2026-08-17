@@ -47,12 +47,44 @@ class GroupRepository {
     await _firebaseService.groups.doc(group.id).set(group.toJson(), SetOptions(merge: true));
   }
 
-  Stream<List<Member>> watchMembers(String groupId) {
-    return _firebaseService.members(groupId)
-        .where('status', isEqualTo: 'active')
-        .snapshots().map((snapshot) {
+  Future<void> updateGroupSettings(String groupId, {
+    String? name,
+    double? monthlyTarget,
+    double? monthlyContributionAmount,
+  }) async {
+    final updates = <String, dynamic>{
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    if (name != null) updates['name'] = name;
+    if (monthlyTarget != null) updates['monthlyTarget'] = monthlyTarget;
+    if (monthlyContributionAmount != null) updates['monthlyContributionAmount'] = monthlyContributionAmount;
+
+    await _firebaseService.groups.doc(groupId).update(updates);
+  }
+
+  Stream<List<Member>> watchMembers(String groupId, {bool activeOnly = true}) {
+    Query query = _firebaseService.members(groupId);
+    if (activeOnly) {
+      query = query.where('status', isEqualTo: 'active');
+    }
+    return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
     });
+  }
+
+  Future<List<Member>> getMembers(String groupId, {bool activeOnly = true}) async {
+    Query query = _firebaseService.members(groupId);
+    if (activeOnly) {
+      query = query.where('status', isEqualTo: 'active');
+    }
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
+  }
+
+  Future<Member?> getMember(String groupId, String memberId) async {
+    final doc = await _firebaseService.members(groupId).doc(memberId).get();
+    if (!doc.exists) return null;
+    return Member.fromJson(doc.data() as Map<String, dynamic>);
   }
 
   Future<void> addMember(Member member) async {
@@ -93,7 +125,7 @@ class GroupRepository {
       type: TransactionType.adjustment,
       amount: member.monthlyContribution,
       date: now,
-      description: 'Member updated: ${member.name} (Hafta: ₹${member.monthlyContribution})',
+      description: 'Member updated: ${member.name} (Hafta: ₹${member.monthlyContribution.toStringAsFixed(0)})',
       referenceId: member.id,
     );
     batch.set(activityRef, activity.toJson());

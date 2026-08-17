@@ -3,11 +3,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/report_models.dart';
+import '../models/member.dart';
 import '../core/utils/calculation_utils.dart';
 
 class PdfService {
   static Future<pw.Font> getFont() async {
-    // For Marathi support
     return await PdfGoogleFonts.notoSansDevanagariRegular();
   }
 
@@ -37,9 +37,9 @@ class PdfService {
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('BG-${report.year}-${report.month.toString().padLeft(2, '0')}-${report.member.id.substring(0, 4)}', style: pw.TextStyle(fontSize: 10)),
+                    pw.Text('BG-${report.year}-${report.month.toString().padLeft(2, '0')}-${report.member.id.substring(0, 4)}', style: const pw.TextStyle(fontSize: 10)),
                     pw.Text(labels['groupName'] ?? '', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
-                    pw.Text(CalculationUtils.formatShortDate(DateTime.now()), style: pw.TextStyle(fontSize: 10)),
+                    pw.Text(CalculationUtils.formatShortDate(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
                   ],
                 ),
               ),
@@ -88,7 +88,7 @@ class PdfService {
               
               pw.Spacer(),
               pw.Center(
-                child: pw.Text('Thank you for your contribution!', style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10)),
+                child: pw.Text('Thank you for your contribution!', style: const pw.TextStyle(fontSize: 10)),
               ),
             ],
           );
@@ -162,9 +162,9 @@ class PdfService {
                   children: [
                     _cell(labels['member'] ?? 'Member', isBold: true),
                     _cell(labels['hafta'] ?? 'Hafta', isBold: true),
-                    _cell(labels['interest'] ?? 'Interest', isBold: true),
+                    _cell(labels['interest'] ?? 'Interest (2%)', isBold: true),
                     _cell(labels['principal'] ?? 'Principal', isBold: true),
-                    _cell(labels['total'] ?? 'Total', isBold: true),
+                    _cell(labels['total'] ?? 'Total Paid', isBold: true),
                     _cell(labels['pendingLoan'] ?? 'Pending Loan', isBold: true),
                   ],
                 ),
@@ -176,6 +176,74 @@ class PdfService {
                     _cell(CalculationUtils.formatCurrency(r.principalRepaid)),
                     _cell(CalculationUtils.formatCurrency(r.totalPaid)),
                     _cell(CalculationUtils.formatCurrency(r.closingPrincipal)),
+                  ],
+                )),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    final file = File(filePath);
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
+
+  static Future<File> generateMemberLedgerPdf({
+    required Member member,
+    required List<MemberLedgerEntry> entries,
+    required String groupName,
+    required String filePath,
+  }) async {
+    final pdf = pw.Document();
+    final font = await getFont();
+    final boldFont = await getBoldFont();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+        header: (pw.Context context) => pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(groupName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('Member Ledger - ${member.name}'),
+          ],
+        ),
+        build: (pw.Context context) {
+          return [
+            pw.SizedBox(height: 20),
+            pw.Center(child: pw.Text('Member Statement & Ledger', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16))),
+            pw.SizedBox(height: 15),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Member: ${member.name} (${member.phone})'),
+                pw.Text('Joined: ${CalculationUtils.formatShortDate(member.joinDate)}'),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            pw.Table(
+              border: pw.TableBorder.all(),
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                  children: [
+                    _cell('Date', isBold: true),
+                    _cell('Description', isBold: true),
+                    _cell('Debit (₹)', isBold: true),
+                    _cell('Credit (₹)', isBold: true),
+                    _cell('Balance (₹)', isBold: true),
+                  ],
+                ),
+                ...entries.map((e) => pw.TableRow(
+                  children: [
+                    _cell(CalculationUtils.formatShortDate(e.date)),
+                    _cell(e.description),
+                    _cell(e.debit > 0 ? CalculationUtils.formatCurrency(e.debit) : '-'),
+                    _cell(e.credit > 0 ? CalculationUtils.formatCurrency(e.credit) : '-'),
+                    _cell(CalculationUtils.formatCurrency(e.balance)),
                   ],
                 )),
               ],

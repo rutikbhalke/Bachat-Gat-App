@@ -348,11 +348,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   onPressed: () async {
                     if (selectedMember != null && totalCalculated > 0) {
                       final recordDate = DateTime.now();
+                      final periodSuffix = '${selectedYear}_${selectedMonth.toString().padLeft(2, '0')}';
                       
                       LoanRepayment? repayment;
                       if (memberActiveLoan != null) {
                         repayment = LoanRepayment(
-                          id: 'R_${recordDate.millisecondsSinceEpoch}',
+                          id: 'R_${memberActiveLoan!.id}_$periodSuffix',
                           loanId: memberActiveLoan!.id,
                           groupId: provider.groupId,
                           memberId: selectedMember!.id,
@@ -374,7 +375,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       }
 
                       final contribution = MonthlyContribution(
-                        id: 'C_${recordDate.millisecondsSinceEpoch}',
+                        id: 'C_${selectedMember!.id}_$periodSuffix',
                         memberId: selectedMember!.id,
                         groupId: provider.groupId,
                         month: selectedMonth,
@@ -394,7 +395,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       );
 
                       final tx = AppTransaction(
-                        id: 'T_${recordDate.millisecondsSinceEpoch}',
+                        id: 'T_${selectedMember!.id}_$periodSuffix',
                         memberId: selectedMember!.id,
                         memberName: selectedMember!.name,
                         type: memberActiveLoan != null ? TransactionType.loanRepayment : TransactionType.monthlyInvestment,
@@ -646,12 +647,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         }
 
                         final recordDate = DateTime.now();
+                        final periodSuffix = '${selectedYear}_${selectedMonth.toString().padLeft(2, '0')}';
                         final newClosing = selectedLoan!.pendingPrincipal - principalRepaid > 0
                             ? selectedLoan!.pendingPrincipal - principalRepaid
                             : 0.0;
 
                         final repayment = LoanRepayment(
-                          id: 'R_${recordDate.millisecondsSinceEpoch}',
+                          id: 'R_${selectedLoan!.id}_$periodSuffix',
                           loanId: selectedLoan!.id,
                           groupId: provider.groupId,
                           memberId: selectedLoan!.memberId,
@@ -670,7 +672,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         );
 
                         final contribution = MonthlyContribution(
-                          id: 'C_${recordDate.millisecondsSinceEpoch}',
+                          id: 'C_${selectedLoan!.memberId}_$periodSuffix',
                           memberId: selectedLoan!.memberId,
                           groupId: provider.groupId,
                           month: selectedMonth,
@@ -689,7 +691,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
                         final memberName = membersMap[selectedLoan!.memberId]?.name ?? 'Member';
                         final tx = AppTransaction(
-                          id: 'T_${recordDate.millisecondsSinceEpoch}',
+                          id: 'T_${selectedLoan!.memberId}_$periodSuffix',
                           memberId: selectedLoan!.memberId,
                           memberName: memberName,
                           type: TransactionType.loanRepayment,

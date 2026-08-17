@@ -6,6 +6,7 @@ import '../../providers/bachat_gat_provider.dart';
 import '../../models/member.dart';
 import '../../models/loan.dart';
 import '../../models/monthly_contribution.dart';
+import '../../models/report_models.dart';
 import '../../app/app_colors.dart';
 import '../../core/utils/calculation_utils.dart';
 import '../../services/pdf_service.dart';
@@ -21,19 +22,26 @@ class MemberDetailScreen extends StatefulWidget {
   State<MemberDetailScreen> createState() => _MemberDetailScreenState();
 }
 
-class _MemberDetailScreenState extends State<MemberDetailScreen> {
+class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTickerProviderStateMixin {
   late Member _member;
   late Stream<List<MonthlyContribution>> _contributionsStream;
   late Stream<List<Loan>> _loansStream;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _member = widget.member;
-    // Cache streams in initState to prevent rebuild loops
+    _tabController = TabController(length: 3, vsync: this);
     final provider = Provider.of<BachatGatProvider>(context, listen: false);
     _contributionsStream = provider.watchContributions(memberId: _member.id);
     _loansStream = provider.watchLoans(memberId: _member.id);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -47,17 +55,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         actions: [
           IconButton(
             onPressed: () => _showReportDialog(provider, l10n),
-            icon: const Icon(Icons.description_outlined),
+            icon: const Icon(Icons.receipt_long_rounded),
             tooltip: l10n.generateReceipt,
           ),
           IconButton(
-            onPressed: () => _editMember(provider),
-            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _shareMemberLedger(provider, l10n),
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Share Ledger',
           ),
-          IconButton(
-            onPressed: () => _deactivateMember(provider),
-            icon: const Icon(Icons.person_remove_outlined),
-            tooltip: 'Deactivate Member',
+          PopupMenuButton<String>(
+            onSelected: (val) {
+              if (val == 'edit') _editMember(provider);
+              if (val == 'deactivate') _deactivateMember(provider);
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 18), SizedBox(width: 8), Text('Edit Member')])),
+              const PopupMenuItem(value: 'deactivate', child: Row(children: [Icon(Icons.person_remove_outlined, size: 18, color: AppColors.error), SizedBox(width: 8), Text('Deactivate', style: TextStyle(color: AppColors.error))])),
+            ],
           ),
         ],
       ),
@@ -67,134 +81,347 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           final contributions = contributionSnapshot.data ?? [];
           contributions.sort((a, b) => b.year != a.year ? b.year.compareTo(a.year) : b.month.compareTo(a.month));
           
-          final totalInvested = contributions.fold<double>(0.0, (sum, i) => sum + i.paidAmount);
+          final totalInvested = contributions.fold<double>(0.0, (sum, i) => sum + i.regularHaftaAmount);
 
           return StreamBuilder<List<Loan>>(
             stream: _loansStream,
             builder: (context, loanSnapshot) {
               final loans = loanSnapshot.data ?? [];
-              final outstandingLoan = loans.where((l) => l.status == LoanStatus.active)
-                  .fold<double>(0.0, (sum, l) => sum + l.pendingPrincipal);
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- HEADER ---
-                    Center(
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                            child: Text(
-                              _member.name[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(_member.name, style: Theme.of(context).textTheme.headlineMedium),
-                          Text(_member.phone, style: Theme.of(context).textTheme.bodyLarge),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.success.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Joined ${CalculationUtils.formatShortDate(_member.joinDate)}',
-                              style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // --- FINANCIAL SUMMARY ---
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SummaryTile(
-                            label: 'Total Invested',
-                            value: CalculationUtils.formatCurrency(totalInvested),
-                            color: AppColors.success,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _SummaryTile(
-                            label: 'Outstanding Loan',
-                            value: CalculationUtils.formatCurrency(outstandingLoan),
-                            color: AppColors.error,
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // --- INVESTMENT HISTORY ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('INVESTMENT HISTORY', style: Theme.of(context).textTheme.labelLarge),
-                        Text(
-                          'Current: ${CalculationUtils.formatCurrency(_member.monthlyContribution)}/mo',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (contributions.isEmpty)
-                      const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No history found')))
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: contributions.length,
-                        separatorBuilder: (context, index) => const Divider(),
-                        itemBuilder: (context, index) {
-                          final inv = contributions[index];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text('${CalculationUtils.getMonthName(inv.month)} ${inv.year}'),
-                            subtitle: Text(
-                              inv.status.name.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: inv.status == ContributionStatus.paid ? AppColors.success : AppColors.accent,
-                              ),
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  CalculationUtils.formatCurrency(inv.paidAmount),
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                if (inv.pendingAmount > 0)
-                                  Text(
-                                    'Pending: ${CalculationUtils.formatCurrency(inv.pendingAmount)}',
-                                    style: const TextStyle(fontSize: 10, color: AppColors.error),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                  ],
+              final activeLoans = loans.where((l) => l.status == LoanStatus.active).toList();
+              final outstandingLoan = activeLoans.fold<double>(0.0, (sum, l) => sum + l.pendingPrincipal);
+              final currentMonthInterest = activeLoans.fold<double>(
+                0.0,
+                (sum, l) => sum + CalculationUtils.calculateMonthlyInterest(
+                  outstandingPrincipal: l.pendingPrincipal,
+                  annualRate: l.interestRate,
                 ),
               );
-            }
+
+              return Column(
+                children: [
+                  // --- HEADER PROFILE CARD ---
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 32,
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                              child: Text(
+                                _member.name.isNotEmpty ? _member.name[0].toUpperCase() : 'M',
+                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_member.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 2),
+                                  Text(_member.phone, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Joined: ${CalculationUtils.formatShortDate(_member.joinDate)} • Hafta: ₹${_member.monthlyContribution.toStringAsFixed(0)}',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        // Summary row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SummaryTile(
+                                label: 'Total Savings',
+                                value: CalculationUtils.formatCurrency(totalInvested),
+                                color: AppColors.success,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _SummaryTile(
+                                label: 'Active Loans',
+                                value: CalculationUtils.formatCurrency(outstandingLoan),
+                                color: outstandingLoan > 0 ? AppColors.error : AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _SummaryTile(
+                                label: '2% Mo. Interest',
+                                value: CalculationUtils.formatCurrency(currentMonthInterest),
+                                color: AppColors.interest,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Tab navigation
+                  Container(
+                    color: Colors.white,
+                    child: TabBar(
+                      controller: _tabController,
+                      labelColor: AppColors.primary,
+                      unselectedLabelColor: AppColors.textMuted,
+                      indicatorColor: AppColors.primary,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      tabs: const [
+                        Tab(text: 'Collections'),
+                        Tab(text: 'Loans'),
+                        Tab(text: 'Ledger'),
+                      ],
+                    ),
+                  ),
+
+                  // Tab Views
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Tab 1: Monthly Collections
+                        _buildCollectionsTab(contributions),
+                        // Tab 2: Loans Breakdown
+                        _buildLoansTab(loans),
+                        // Tab 3: Member Ledger
+                        _buildLedgerTab(provider),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           );
-        }
+        },
       ),
+    );
+  }
+
+  Widget _buildCollectionsTab(List<MonthlyContribution> contributions) {
+    if (contributions.isEmpty) {
+      return const Center(child: Text('No collection history found', style: TextStyle(color: AppColors.textMuted)));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: contributions.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final item = contributions[index];
+        final isPaid = item.status == ContributionStatus.paid;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${CalculationUtils.getMonthName(item.month)} ${item.year}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (isPaid ? AppColors.success : AppColors.warning).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      item.status.name.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isPaid ? AppColors.success : AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Hafta: ₹${item.regularHaftaAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  if (item.interestAmount > 0)
+                    Text('Interest: ₹${item.interestAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.interest)),
+                  if (item.loanPrincipalPaid > 0)
+                    Text('Principal: ₹${item.loanPrincipalPaid.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.primary)),
+                  Text(
+                    'Total: ${CalculationUtils.formatCurrency(item.paidAmount)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoansTab(List<Loan> loans) {
+    if (loans.isEmpty) {
+      return const Center(child: Text('No loans issued for this member', style: TextStyle(color: AppColors.textMuted)));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: loans.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final loan = loans[index];
+        final isActive = loan.status == LoanStatus.active;
+        final interestMo = CalculationUtils.calculateMonthlyInterest(
+          outstandingPrincipal: loan.pendingPrincipal,
+          annualRate: loan.interestRate,
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Loan: ₹${loan.originalPrincipal.toStringAsFixed(0)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (isActive ? AppColors.error : AppColors.textMuted).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      loan.status.name.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? AppColors.error : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Issued: ${CalculationUtils.formatShortDate(loan.loanDate)} • Rate: ${loan.interestRate}%/mo',
+                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+              const Divider(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Outstanding Principal', style: TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                      Text(CalculationUtils.formatCurrency(loan.pendingPrincipal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Monthly Interest (2%)', style: TextStyle(fontSize: 10, color: AppColors.interest, fontWeight: FontWeight.bold)),
+                      Text(CalculationUtils.formatCurrency(interestMo), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.interest)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLedgerTab(BachatGatProvider provider) {
+    return FutureBuilder<List<MemberLedgerEntry>>(
+      future: provider.getMemberLedger(_member.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final entries = snapshot.data ?? [];
+        if (entries.isEmpty) {
+          return const Center(child: Text('No ledger entries recorded', style: TextStyle(color: AppColors.textMuted)));
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: entries.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (entry.credit > 0 ? AppColors.success : AppColors.error).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      entry.credit > 0 ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                      size: 16,
+                      color: entry.credit > 0 ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.description, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(CalculationUtils.formatShortDate(entry.date), style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        entry.credit > 0 ? '+ ${CalculationUtils.formatCurrency(entry.credit)}' : '- ${CalculationUtils.formatCurrency(entry.debit)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                          color: entry.credit > 0 ? AppColors.success : AppColors.error,
+                        ),
+                      ),
+                      Text(
+                        'Bal: ${CalculationUtils.formatCurrency(entry.balance)}',
+                        style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -227,38 +454,63 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-            Column(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    _generateAndActionReceipt(provider, l10n, selectedMonth, selectedYear, isShare: false);
-                  },
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: Text(l10n.view),
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(120, 40)),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    _generateAndActionReceipt(provider, l10n, selectedMonth, selectedYear, isShare: true);
-                  },
-                  icon: const Icon(Icons.share_outlined),
-                  label: Text(l10n.shareOnWhatsApp),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(120, 40),
-                  ),
-                ),
-              ],
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                _generateAndActionReceipt(provider, l10n, selectedMonth, selectedYear, isShare: false);
+              },
+              icon: const Icon(Icons.visibility_outlined, size: 16),
+              label: Text(l10n.view),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                _generateAndActionReceipt(provider, l10n, selectedMonth, selectedYear, isShare: true);
+              },
+              icon: const Icon(Icons.share_outlined, size: 16),
+              label: Text(l10n.shareOnWhatsApp),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _shareMemberLedger(BachatGatProvider provider, AppLocalizations l10n) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final entries = await provider.getMemberLedger(_member.id);
+      final group = await provider.watchGroup().first;
+      final dir = await getTemporaryDirectory();
+      final filePath = '${dir.path}/BG_Ledger_${_member.name}.pdf';
+
+      final file = await PdfService.generateMemberLedgerPdf(
+        member: _member,
+        entries: entries,
+        groupName: group?.name ?? 'Bachat Gat',
+        filePath: filePath,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      await ShareService.shareMemberLedger(
+        member: _member,
+        filePath: file.path,
+        languageCode: l10n.localeName,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   Future<void> _generateAndActionReceipt(BachatGatProvider provider, AppLocalizations l10n, int month, int year, {required bool isShare}) async {
@@ -401,18 +653,18 @@ class _SummaryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );

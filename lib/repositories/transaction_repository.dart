@@ -20,6 +20,21 @@ class TransactionRepository {
     });
   }
 
+  Future<List<MonthlyContribution>> getContributions(String groupId, {String? memberId, int? month, int? year}) async {
+    Query query = _firebaseService.monthlyContributions(groupId);
+    if (memberId != null) {
+      query = query.where('memberId', isEqualTo: memberId);
+    }
+    if (month != null) {
+      query = query.where('month', isEqualTo: month);
+    }
+    if (year != null) {
+      query = query.where('year', isEqualTo: year);
+    }
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => MonthlyContribution.fromJson(doc.data() as Map<String, dynamic>)).toList();
+  }
+
   Stream<List<Loan>> watchLoans(String groupId, {String? memberId}) {
     Query query = _firebaseService.loans(groupId);
     if (memberId != null) {
@@ -28,6 +43,18 @@ class TransactionRepository {
     return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Loan.fromJson(doc.data() as Map<String, dynamic>)).toList();
     });
+  }
+
+  Future<List<Loan>> getLoans(String groupId, {String? memberId, LoanStatus? status}) async {
+    Query query = _firebaseService.loans(groupId);
+    if (memberId != null) {
+      query = query.where('memberId', isEqualTo: memberId);
+    }
+    if (status != null) {
+      query = query.where('status', isEqualTo: status.name);
+    }
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => Loan.fromJson(doc.data() as Map<String, dynamic>)).toList();
   }
 
   Stream<List<LoanRepayment>> watchRepayments(String groupId, {String? loanId, String? memberId}) {
@@ -43,6 +70,24 @@ class TransactionRepository {
     });
   }
 
+  Future<List<LoanRepayment>> getRepayments(String groupId, {String? loanId, String? memberId, int? month, int? year}) async {
+    Query query = _firebaseService.loanRepayments(groupId);
+    if (loanId != null) {
+      query = query.where('loanId', isEqualTo: loanId);
+    }
+    if (memberId != null) {
+      query = query.where('memberId', isEqualTo: memberId);
+    }
+    if (month != null) {
+      query = query.where('month', isEqualTo: month);
+    }
+    if (year != null) {
+      query = query.where('year', isEqualTo: year);
+    }
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => LoanRepayment.fromJson(doc.data() as Map<String, dynamic>)).toList();
+  }
+
   Stream<List<AppTransaction>> watchRecentActivities(String groupId, {int limit = 20}) {
     return _firebaseService.activities(groupId)
         .orderBy('date', descending: true)
@@ -53,6 +98,15 @@ class TransactionRepository {
     });
   }
 
+  Future<List<AppTransaction>> getMemberTransactions(String groupId, String memberId) async {
+    final snapshot = await _firebaseService.activities(groupId)
+        .where('memberId', isEqualTo: memberId)
+        .get();
+    final list = snapshot.docs.map((doc) => AppTransaction.fromJson(doc.data() as Map<String, dynamic>)).toList();
+    list.sort((a, b) => a.date.compareTo(b.date));
+    return list;
+  }
+
   Future<void> recordContribution(
     String groupId,
     MonthlyContribution contribution,
@@ -60,6 +114,29 @@ class TransactionRepository {
     Loan? loan,
     LoanRepayment? repayment,
   }) async {
+    // 1. Prevent duplicate collection for same member, month, year
+    final existingContribs = await _firebaseService.monthlyContributions(groupId)
+        .where('memberId', isEqualTo: contribution.memberId)
+        .where('month', isEqualTo: contribution.month)
+        .where('year', isEqualTo: contribution.year)
+        .get();
+
+    if (existingContribs.docs.isNotEmpty && existingContribs.docs.first.id != contribution.id) {
+      throw Exception('A contribution for member ${contribution.memberId} for ${contribution.month}/${contribution.year} already exists.');
+    }
+
+    if (loan != null && repayment != null) {
+      final existingRepayments = await _firebaseService.loanRepayments(groupId)
+          .where('loanId', isEqualTo: loan.id)
+          .where('month', isEqualTo: repayment.month)
+          .where('year', isEqualTo: repayment.year)
+          .get();
+
+      if (existingRepayments.docs.isNotEmpty && existingRepayments.docs.first.id != repayment.id) {
+        throw Exception('A loan repayment for loan ${loan.id} for ${repayment.month}/${repayment.year} already exists.');
+      }
+    }
+
     await _firebaseService.firestore.runTransaction((transaction) async {
       // 1. Record Monthly Contribution
       final contributionRef = _firebaseService.monthlyContributions(groupId).doc(contribution.id);
@@ -122,6 +199,16 @@ class TransactionRepository {
     required AppTransaction tx,
     MonthlyContribution? contribution,
   }) async {
+    final existingRepayments = await _firebaseService.loanRepayments(groupId)
+        .where('loanId', isEqualTo: loan.id)
+        .where('month', isEqualTo: repayment.month)
+        .where('year', isEqualTo: repayment.year)
+        .get();
+
+    if (existingRepayments.docs.isNotEmpty && existingRepayments.docs.first.id != repayment.id) {
+      throw Exception('A repayment for loan ${loan.id} for ${repayment.month}/${repayment.year} already exists.');
+    }
+
     await _firebaseService.firestore.runTransaction((transaction) async {
       // 1. Record the repayment event
       transaction.set(_firebaseService.loanRepayments(groupId).doc(repayment.id), repayment.toJson());
@@ -155,6 +242,72 @@ class TransactionRepository {
         updates['totalSavings'] = FieldValue.increment(repayment.regularContribution);
       }
       transaction.update(groupRef, updates);
+    });
+  }
+
+  Future<void> reverseContribution({
+    required String groupId,
+    required String contributionId,
+    String? repaymentId,
+    String? loanId,
+  }) async {
+    await _firebaseService.firestore.runTransaction((transaction) async {
+      final contribRef = _firebaseService.monthlyContributions(groupId).doc(contributionId);
+      final contribDoc = await transaction.get(contribRef);
+      if (!contribDoc.exists) return;
+
+      final contrib = MonthlyContribution.fromJson(contribDoc.data() as Map<String, dynamic>);
+      transaction.delete(contribRef);
+
+      double principalToRestore = 0.0;
+      double interestToRemove = 0.0;
+
+      if (repaymentId != null && loanId != null) {
+        final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repaymentId);
+        final repaymentDoc = await transaction.get(repaymentRef);
+        if (repaymentDoc.exists) {
+          final repayment = LoanRepayment.fromJson(repaymentDoc.data() as Map<String, dynamic>);
+          principalToRestore = repayment.principalRepaid;
+          interestToRemove = repayment.interestAmount;
+          transaction.delete(repaymentRef);
+
+          final loanRef = _firebaseService.loans(groupId).doc(loanId);
+          final loanDoc = await transaction.get(loanRef);
+          if (loanDoc.exists) {
+            final loan = Loan.fromJson(loanDoc.data() as Map<String, dynamic>);
+            final restoredPending = loan.pendingPrincipal + principalToRestore;
+            transaction.update(loanRef, {
+              'pendingPrincipal': restoredPending,
+              'status': restoredPending > 0 ? LoanStatus.active.name : LoanStatus.closed.name,
+              'updatedAt': DateTime.now().toIso8601String(),
+            });
+          }
+        }
+      }
+
+      // Group totals reversal
+      final groupRef = _firebaseService.groups.doc(groupId);
+      transaction.update(groupRef, {
+        'totalFund': FieldValue.increment(-contrib.totalPaid),
+        'totalSavings': FieldValue.increment(-contrib.regularHaftaAmount),
+        'totalOutstandingLoans': FieldValue.increment(principalToRestore),
+        'totalInterestCollected': FieldValue.increment(-interestToRemove),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      // Log reversal activity
+      final now = DateTime.now();
+      final revTx = AppTransaction(
+        id: 'REV_${now.millisecondsSinceEpoch}',
+        memberId: contrib.memberId,
+        memberName: 'Reversal',
+        type: TransactionType.adjustment,
+        amount: -contrib.totalPaid,
+        date: now,
+        description: 'Reversed payment for ${contrib.month}/${contrib.year}',
+        referenceId: contributionId,
+      );
+      transaction.set(_firebaseService.activities(groupId).doc(revTx.id), revTx.toJson());
     });
   }
 }
