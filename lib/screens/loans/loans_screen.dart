@@ -1,63 +1,89 @@
 import 'package:flutter/material.dart';
-import '../../services/data_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/bachat_gat_provider.dart';
 import '../../models/loan.dart';
+import '../../models/member.dart';
 import '../../app/app_colors.dart';
 import '../../core/utils/calculation_utils.dart';
 import 'loan_detail_screen.dart';
 
 class LoansScreen extends StatefulWidget {
-  final DataService dataService;
-
-  const LoansScreen({super.key, required this.dataService});
+  const LoansScreen({super.key});
 
   @override
   State<LoansScreen> createState() => _LoansScreenState();
 }
 
 class _LoansScreenState extends State<LoansScreen> {
+  late Stream<List<Loan>> _loansStream;
+  late Stream<List<Member>> _membersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final provider = Provider.of<BachatGatProvider>(context, listen: false);
+    _loansStream = provider.watchLoans();
+    _membersStream = provider.watchMembers();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allLoans = widget.dataService.getLoans();
-    final activeLoans = allLoans.where((l) => l.status == LoanStatus.active).toList();
-    final closedLoans = allLoans.where((l) => l.status == LoanStatus.closed).toList();
+    return StreamBuilder<List<Loan>>(
+      stream: _loansStream,
+      builder: (context, loanSnapshot) {
+        if (loanSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text('Manage Loans'),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Active Loans'),
-              Tab(text: 'Closed'),
-            ],
-            indicatorColor: AppColors.primary,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textMuted,
-            indicatorSize: TabBarIndicatorSize.label,
-            labelStyle: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _LoanList(loans: activeLoans, dataService: widget.dataService, onRefresh: () => setState(() {})),
-            _LoanList(loans: closedLoans, dataService: widget.dataService, onRefresh: () => setState(() {})),
-          ],
-        ),
-      ),
+        final allLoans = loanSnapshot.data ?? [];
+        final activeLoans = allLoans.where((l) => l.status == LoanStatus.active).toList();
+        final closedLoans = allLoans.where((l) => l.status == LoanStatus.closed).toList();
+
+        return StreamBuilder<List<Member>>(
+          stream: _membersStream,
+          builder: (context, memberSnapshot) {
+            final membersMap = {for (var m in memberSnapshot.data ?? []) m.id: m.name};
+
+            return DefaultTabController(
+              length: 2,
+              child: Scaffold(
+                backgroundColor: AppColors.background,
+                appBar: AppBar(
+                  title: const Text('Manage Loans'),
+                  backgroundColor: Colors.white,
+                  surfaceTintColor: Colors.white,
+                  bottom: const TabBar(
+                    tabs: [
+                      Tab(text: 'Active Loans'),
+                      Tab(text: 'Closed'),
+                    ],
+                    indicatorColor: AppColors.primary,
+                    labelColor: AppColors.primary,
+                    unselectedLabelColor: AppColors.textMuted,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelStyle: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                body: TabBarView(
+                  children: [
+                    _LoanList(loans: activeLoans, membersMap: Map<String, String>.from(membersMap)),
+                    _LoanList(loans: closedLoans, membersMap: Map<String, String>.from(membersMap)),
+                  ],
+                ),
+              ),
+            );
+          }
+        );
+      }
     );
   }
 }
 
 class _LoanList extends StatelessWidget {
   final List<Loan> loans;
-  final DataService dataService;
-  final VoidCallback onRefresh;
+  final Map<String, String> membersMap;
 
-  const _LoanList({required this.loans, required this.dataService, required this.onRefresh});
+  const _LoanList({required this.loans, required this.membersMap});
 
   @override
   Widget build(BuildContext context) {
@@ -74,8 +100,6 @@ class _LoanList extends StatelessWidget {
       );
     }
     
-    final members = {for (var m in dataService.getMembers()) m.id: m.name};
-
     return ListView.separated(
       padding: const EdgeInsets.all(20),
       itemCount: loans.length,
@@ -84,17 +108,16 @@ class _LoanList extends StatelessWidget {
         final loan = loans[index];
         return _LoanCard(
           loan: loan,
-          memberName: members[loan.memberId] ?? 'Unknown',
+          memberName: membersMap[loan.memberId] ?? 'Unknown',
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => LoanDetailScreen(
-                  dataService: dataService,
                   loan: loan,
                 ),
               ),
-            ).then((_) => onRefresh());
+            );
           },
         );
       },
@@ -111,7 +134,7 @@ class _LoanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = loan.loanAmount > 0 ? (1 - (loan.outstandingPrincipal / loan.loanAmount)) : 1.0;
+    final progress = loan.originalPrincipal > 0 ? (1 - (loan.pendingPrincipal / loan.originalPrincipal)) : 1.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -151,7 +174,7 @@ class _LoanCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    CalculationUtils.formatCurrency(loan.loanAmount),
+                    CalculationUtils.formatCurrency(loan.originalPrincipal),
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.primary),
                   ),
                 ],
@@ -161,7 +184,7 @@ class _LoanCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _buildSmallInfo('Interest Rate', '${loan.interestRate}% / mo'),
-                  _buildSmallInfo('Outstanding', CalculationUtils.formatCurrency(loan.outstandingPrincipal)),
+                  _buildSmallInfo('Outstanding', CalculationUtils.formatCurrency(loan.pendingPrincipal)),
                   _buildSmallInfo('Repaid', '${(progress * 100).toStringAsFixed(0)}%'),
                 ],
               ),

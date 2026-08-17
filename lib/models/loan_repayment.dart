@@ -1,47 +1,86 @@
 class LoanRepayment {
   final String id;
   final String loanId;
+  final String groupId;
   final String memberId;
-  final DateTime paymentDate;
-  final double paymentAmount;
+  final int month;
+  final int year;
+  final double openingPrincipal;
+  final double interestRate;
   final double interestAmount;
-  final double principalAmount;
-  final double remainingPrincipal;
-  final String? notes;
+  final double regularContribution;
+  final double principalRepaid;
+  final double totalPaid;
+  final double closingPrincipal;
+  final DateTime paymentDate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   LoanRepayment({
     required this.id,
     required this.loanId,
+    required this.groupId,
     required this.memberId,
-    required this.paymentDate,
-    required this.paymentAmount,
+    required this.month,
+    required this.year,
+    required this.openingPrincipal,
+    required this.interestRate,
     required this.interestAmount,
-    required this.principalAmount,
-    required this.remainingPrincipal,
-    this.notes,
+    required this.regularContribution,
+    required this.principalRepaid,
+    required this.totalPaid,
+    required this.closingPrincipal,
+    required this.paymentDate,
+    required this.createdAt,
+    required this.updatedAt,
   });
+
+  String get repaymentId => id;
+  double get regularHafta => regularContribution;
+  double get principalPaid => principalRepaid;
+  double get totalPayment => totalPaid;
+  double get pendingPrincipalAfterPayment => closingPrincipal;
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'repaymentId': id,
         'loanId': loanId,
+        'groupId': groupId,
         'memberId': memberId,
-        'paymentDate': paymentDate.toIso8601String(),
-        'paymentAmount': paymentAmount,
+        'month': month,
+        'year': year,
+        'openingPrincipal': openingPrincipal,
+        'interestRate': interestRate,
         'interestAmount': interestAmount,
-        'principalAmount': principalAmount,
-        'remainingPrincipal': remainingPrincipal,
-        'notes': notes,
+        'regularContribution': regularContribution,
+        'regularHafta': regularContribution,
+        'principalRepaid': principalRepaid,
+        'principalPaid': principalRepaid,
+        'totalPaid': totalPaid,
+        'totalPayment': totalPaid,
+        'closingPrincipal': closingPrincipal,
+        'pendingPrincipalAfterPayment': closingPrincipal,
+        'paymentDate': paymentDate.toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
       };
 
   factory LoanRepayment.fromJson(Map<String, dynamic> json) => LoanRepayment(
-        id: json['id'],
+        id: json['repaymentId'] ?? json['id'],
         loanId: json['loanId'],
+        groupId: json['groupId'] ?? '',
         memberId: json['memberId'],
-        paymentDate: DateTime.parse(json['paymentDate']),
-        paymentAmount: (json['paymentAmount'] as num).toDouble(),
+        month: json['month'],
+        year: json['year'],
+        openingPrincipal: (json['openingPrincipal'] as num).toDouble(),
+        interestRate: (json['interestRate'] as num).toDouble(),
         interestAmount: (json['interestAmount'] as num).toDouble(),
-        principalAmount: (json['principalAmount'] as num).toDouble(),
-        remainingPrincipal: (json['remainingPrincipal'] as num).toDouble(),
-        notes: json['notes'],
+        regularContribution: (json['regularHafta'] ?? json['regularContribution'] ?? 0.0 as num).toDouble(),
+        principalRepaid: (json['principalPaid'] ?? json['principalRepaid'] as num).toDouble(),
+        totalPaid: (json['totalPayment'] ?? json['totalPaid'] as num).toDouble(),
+        closingPrincipal: (json['pendingPrincipalAfterPayment'] ?? json['closingPrincipal'] as num).toDouble(),
+        paymentDate: DateTime.parse(json['paymentDate']),
+        createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
       );
 }

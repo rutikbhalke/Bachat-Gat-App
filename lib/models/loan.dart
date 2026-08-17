@@ -1,65 +1,81 @@
-enum LoanStatus { active, closed }
+enum LoanStatus { active, closed, cancelled }
 
 class Loan {
   final String id;
+  final String groupId;
   final String memberId;
-  final double loanAmount;
+  final double originalPrincipal;
+  final double pendingPrincipal;
+  final double interestRate; // Monthly rate %
   final DateTime loanDate;
-  final double interestRate; // Monthly rate
-  final double outstandingPrincipal;
-  final LoanStatus status;
   final String? purpose;
-  final String? notes;
+  final LoanStatus status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Loan({
     required this.id,
+    required this.groupId,
     required this.memberId,
-    required this.loanAmount,
-    required this.loanDate,
+    required this.originalPrincipal,
+    required this.pendingPrincipal,
     required this.interestRate,
-    required this.outstandingPrincipal,
-    this.status = LoanStatus.active,
+    required this.loanDate,
     this.purpose,
-    this.notes,
+    this.status = LoanStatus.active,
+    required this.createdAt,
+    required this.updatedAt,
   });
+
+  String get loanId => id;
+  DateTime get issueDate => loanDate;
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'loanId': id,
+        'groupId': groupId,
         'memberId': memberId,
-        'loanAmount': loanAmount,
-        'loanDate': loanDate.toIso8601String(),
+        'originalPrincipal': originalPrincipal,
+        'pendingPrincipal': pendingPrincipal,
         'interestRate': interestRate,
-        'outstandingPrincipal': outstandingPrincipal,
-        'status': status.name,
+        'loanDate': loanDate.toIso8601String(),
+        'issueDate': loanDate.toIso8601String(),
         'purpose': purpose,
-        'notes': notes,
+        'status': status.name,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
       };
 
   factory Loan.fromJson(Map<String, dynamic> json) => Loan(
-        id: json['id'],
+        id: json['loanId'] ?? json['id'],
+        groupId: json['groupId'] ?? '',
         memberId: json['memberId'],
-        loanAmount: (json['loanAmount'] as num).toDouble(),
-        loanDate: DateTime.parse(json['loanDate']),
+        originalPrincipal: (json['originalPrincipal'] as num).toDouble(),
+        pendingPrincipal: (json['pendingPrincipal'] as num).toDouble(),
         interestRate: (json['interestRate'] as num).toDouble(),
-        outstandingPrincipal: (json['outstandingPrincipal'] as num).toDouble(),
-        status: LoanStatus.values.byName(json['status'] ?? 'active'),
+        loanDate: DateTime.parse(json['issueDate'] ?? json['loanDate']),
         purpose: json['purpose'],
-        notes: json['notes'],
+        status: LoanStatus.values.byName(json['status'] ?? 'active'),
+        createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
       );
 
   Loan copyWith({
-    double? outstandingPrincipal,
+    double? pendingPrincipal,
     LoanStatus? status,
+    DateTime? updatedAt,
   }) =>
       Loan(
         id: id,
+        groupId: groupId,
         memberId: memberId,
-        loanAmount: loanAmount,
-        loanDate: loanDate,
+        originalPrincipal: originalPrincipal,
+        pendingPrincipal: pendingPrincipal ?? this.pendingPrincipal,
         interestRate: interestRate,
-        outstandingPrincipal: outstandingPrincipal ?? this.outstandingPrincipal,
-        status: status ?? this.status,
+        loanDate: loanDate,
         purpose: purpose,
-        notes: notes,
+        status: status ?? this.status,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
       );
 }

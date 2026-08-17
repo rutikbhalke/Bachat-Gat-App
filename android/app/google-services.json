@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1038306626235",
+    "project_id": "bachat-gat-app-9e38e",
+    "storage_bucket": "bachat-gat-app-9e38e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1038306626235:android:7d054a950319db8fd3b79e",
+        "android_client_info": {
+          "package_name": "com.iqonic.bachat_gat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjHEvpL4KK4n3NeCjgK12VoQIn0AZfvQA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

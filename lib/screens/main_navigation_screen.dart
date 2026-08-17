@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-import '../services/data_service.dart';
+import 'package:provider/provider.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/bachat_gat_provider.dart';
 import '../app/app_colors.dart';
 import '../models/member.dart';
 import '../models/loan.dart';
+import '../models/monthly_contribution.dart';
+import '../models/transaction.dart';
+import '../models/loan_repayment.dart';
 import '../core/utils/calculation_utils.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'members/members_screen.dart';
@@ -10,12 +15,7 @@ import 'loans/loans_screen.dart';
 import 'reports/reports_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
-  final DataService dataService;
-
-  const MainNavigationScreen({
-    super.key,
-    required this.dataService,
-  });
+  const MainNavigationScreen({super.key});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -31,15 +31,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     super.initState();
     _screens = [
       const DashboardScreen(),
-      MembersScreen(dataService: widget.dataService),
+      const MembersScreen(),
       const SizedBox.shrink(), // Center button placeholder
-      LoansScreen(dataService: widget.dataService),
-      ReportsScreen(dataService: widget.dataService),
+      const LoansScreen(),
+      const ReportsScreen(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<BachatGatProvider>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -49,37 +52,37 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         currentIndex: _currentIndex,
         onTap: (index) {
           if (index == 2) {
-            _showAddMenu();
+            _showAddMenu(provider);
           } else {
             setState(() => _currentIndex = index);
           }
         },
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded),
-            label: 'Home',
+            icon: const Icon(Icons.home_rounded),
+            label: l10n.home,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.people_rounded),
-            label: 'Members',
+            icon: const Icon(Icons.people_rounded),
+            label: l10n.members,
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: SizedBox.shrink(),
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_rounded),
-            label: 'Loans',
+            icon: const Icon(Icons.account_balance_rounded),
+            label: l10n.loans,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.grid_view_rounded),
-            label: 'More',
+            icon: const Icon(Icons.grid_view_rounded),
+            label: l10n.reports,
           ),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddMenu,
+        onPressed: () => _showAddMenu(provider),
         elevation: 4,
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -89,7 +92,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  void _showAddMenu() {
+  void _showAddMenu(BachatGatProvider provider) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -104,45 +108,45 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Record Transaction', style: Theme.of(context).textTheme.titleLarge),
+              Text(l10n.quickActions, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildAddOption(
                     icon: Icons.person_add_rounded,
-                    label: 'Add Member',
+                    label: '${l10n.members} +',
                     color: AppColors.info,
                     onTap: () {
                       Navigator.pop(context);
-                      _showAddMemberDialog();
+                      _showAddMemberDialog(provider);
                     },
                   ),
                   _buildAddOption(
                     icon: Icons.savings_rounded,
-                    label: 'Collect Savings',
+                    label: l10n.addSavings,
                     color: AppColors.success,
                     onTap: () {
                       Navigator.pop(context);
-                      _showAddInvestmentDialog();
+                      _showAddInvestmentDialog(provider);
                     },
                   ),
                   _buildAddOption(
                     icon: Icons.upload_rounded,
-                    label: 'Give Loan',
+                    label: l10n.loans,
                     color: AppColors.warning,
                     onTap: () {
                       Navigator.pop(context);
-                      _showGiveLoanDialog();
+                      _showGiveLoanDialog(provider);
                     },
                   ),
                   _buildAddOption(
                     icon: Icons.download_rounded,
-                    label: 'Loan Repay',
+                    label: l10n.loanRepaid,
                     color: AppColors.primary,
                     onTap: () {
                       Navigator.pop(context);
-                      _showRepaymentDialog();
+                      _showRepaymentDialog(provider);
                     },
                   ),
                 ],
@@ -155,14 +159,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  void _showAddMemberDialog() {
+  void _showAddMemberDialog(BachatGatProvider provider) {
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
     final amountController = TextEditingController(text: '1000');
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Add Member'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -175,20 +179,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
-                await widget.dataService.addMember(Member(
-                  id: 'M_${DateTime.now().millisecondsSinceEpoch}',
+                final now = DateTime.now();
+                await provider.addMember(Member(
+                  id: 'M_${now.millisecondsSinceEpoch}',
+                  groupId: provider.groupId,
                   name: nameController.text,
                   phone: phoneController.text,
-                  joinDate: DateTime.now(),
-                  monthlyInvestment: double.tryParse(amountController.text) ?? 1000.0,
+                  joinDate: now,
+                  monthlyContribution: double.tryParse(amountController.text) ?? 1000.0,
+                  createdAt: now,
+                  updatedAt: now,
                 ));
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                setState(() {});
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
               }
             },
             child: const Text('Add'),
@@ -198,190 +205,519 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  void _showAddInvestmentDialog() {
-    final members = widget.dataService.getMembers();
-    if (members.isEmpty) {
-      _showError('Please add a member first');
-      return;
-    }
+  void _showAddInvestmentDialog(BachatGatProvider provider) {
+    provider.watchMembers().first.then((members) {
+      if (!mounted) return;
+      if (members.isEmpty) {
+        _showError('Please add a member first');
+        return;
+      }
 
-    Member? selectedMember;
-    final amountController = TextEditingController();
-    final now = DateTime.now();
-    int selectedMonth = now.month;
-    int selectedYear = now.year;
+      Member? selectedMember;
+      Loan? memberActiveLoan;
+      final haftaController = TextEditingController();
+      final principalController = TextEditingController(text: '0');
+      final now = DateTime.now();
+      int selectedMonth = now.month;
+      int selectedYear = now.year;
+      double calculatedInterest = 0.0;
 
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Record Investment'),
+      showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final hafta = double.tryParse(haftaController.text) ?? 0.0;
+            final principal = double.tryParse(principalController.text) ?? 0.0;
+            final totalCalculated = hafta + calculatedInterest + principal;
+
+            return AlertDialog(
+              title: const Text('Record Monthly Collection'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<Member>(
+                      items: members.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
+                      onChanged: (val) async {
+                        selectedMember = val;
+                        if (val != null) {
+                          haftaController.text = val.monthlyContribution.toStringAsFixed(0);
+                          final loans = await provider.watchLoans(memberId: val.id).first;
+                          final active = loans.where((l) => l.status == LoanStatus.active).toList();
+                          if (active.isNotEmpty) {
+                            memberActiveLoan = active.first;
+                            calculatedInterest = CalculationUtils.calculateMonthlyInterest(
+                              outstandingPrincipal: memberActiveLoan!.pendingPrincipal,
+                              annualRate: memberActiveLoan!.interestRate,
+                            );
+                          } else {
+                            memberActiveLoan = null;
+                            calculatedInterest = 0.0;
+                          }
+                          setDialogState(() {});
+                        }
+                      },
+                      decoration: const InputDecoration(labelText: 'Select Member'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            initialValue: selectedMonth,
+                            items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(CalculationUtils.getMonthName(i + 1)))),
+                            onChanged: (val) => setDialogState(() => selectedMonth = val!),
+                            decoration: const InputDecoration(labelText: 'Month'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            initialValue: selectedYear,
+                            items: [now.year - 1, now.year, now.year + 1].map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
+                            onChanged: (val) => setDialogState(() => selectedYear = val!),
+                            decoration: const InputDecoration(labelText: 'Year'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: haftaController,
+                      decoration: const InputDecoration(labelText: 'Regular Hafta (₹)'),
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    if (memberActiveLoan != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Active Loan: ₹${memberActiveLoan!.pendingPrincipal.toStringAsFixed(0)} @ ${memberActiveLoan!.interestRate}%/mo',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Interest Due: ₹${calculatedInterest.toStringAsFixed(0)}',
+                              style: const TextStyle(color: AppColors.interest, fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: principalController,
+                        decoration: const InputDecoration(labelText: 'Loan Principal Repayment (₹) (Optional)'),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total Payment:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(
+                            CalculationUtils.formatCurrency(totalCalculated),
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (selectedMember != null && totalCalculated > 0) {
+                      final recordDate = DateTime.now();
+                      
+                      LoanRepayment? repayment;
+                      if (memberActiveLoan != null) {
+                        repayment = LoanRepayment(
+                          id: 'R_${recordDate.millisecondsSinceEpoch}',
+                          loanId: memberActiveLoan!.id,
+                          groupId: provider.groupId,
+                          memberId: selectedMember!.id,
+                          month: selectedMonth,
+                          year: selectedYear,
+                          openingPrincipal: memberActiveLoan!.pendingPrincipal,
+                          interestRate: memberActiveLoan!.interestRate,
+                          interestAmount: calculatedInterest,
+                          regularContribution: hafta,
+                          principalRepaid: principal,
+                          totalPaid: totalCalculated,
+                          closingPrincipal: memberActiveLoan!.pendingPrincipal - principal > 0
+                              ? memberActiveLoan!.pendingPrincipal - principal
+                              : 0.0,
+                          paymentDate: recordDate,
+                          createdAt: recordDate,
+                          updatedAt: recordDate,
+                        );
+                      }
+
+                      final contribution = MonthlyContribution(
+                        id: 'C_${recordDate.millisecondsSinceEpoch}',
+                        memberId: selectedMember!.id,
+                        groupId: provider.groupId,
+                        month: selectedMonth,
+                        year: selectedYear,
+                        regularHaftaAmount: hafta,
+                        interestAmount: calculatedInterest,
+                        loanPrincipalPaid: principal,
+                        totalPaid: totalCalculated,
+                        expectedAmount: selectedMember!.monthlyContribution,
+                        paidAmount: totalCalculated,
+                        status: hafta >= selectedMember!.monthlyContribution
+                            ? ContributionStatus.paid
+                            : ContributionStatus.partial,
+                        paymentDate: recordDate,
+                        createdAt: recordDate,
+                        updatedAt: recordDate,
+                      );
+
+                      final tx = AppTransaction(
+                        id: 'T_${recordDate.millisecondsSinceEpoch}',
+                        memberId: selectedMember!.id,
+                        memberName: selectedMember!.name,
+                        type: memberActiveLoan != null ? TransactionType.loanRepayment : TransactionType.monthlyInvestment,
+                        amount: totalCalculated,
+                        date: recordDate,
+                        description: memberActiveLoan != null
+                            ? 'Monthly Payment - ${CalculationUtils.getMonthName(selectedMonth)} $selectedYear (Hafta: ₹$hafta, Interest: ₹$calculatedInterest, Principal: ₹$principal)'
+                            : 'Monthly Contribution - ${CalculationUtils.getMonthName(selectedMonth)} $selectedYear',
+                      );
+
+                      await provider.recordContribution(
+                        contribution,
+                        tx,
+                        loan: memberActiveLoan,
+                        repayment: repayment,
+                      );
+
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                    }
+                  },
+                  child: const Text('Record'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  void _showGiveLoanDialog(BachatGatProvider provider) {
+    provider.watchMembers().first.then((members) {
+      if (!mounted) return;
+      if (members.isEmpty) {
+        _showError('Please add a member first');
+        return;
+      }
+
+      Member? selectedMember;
+      final amountController = TextEditingController();
+      final rateController = TextEditingController(text: '2.0');
+      final purposeController = TextEditingController();
+
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Give Loan'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<Member>(
                   items: members.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
-                  onChanged: (val) {
-                    selectedMember = val;
-                    if (val != null) amountController.text = val.monthlyInvestment.toString();
-                  },
+                  onChanged: (val) => selectedMember = val,
                   decoration: const InputDecoration(labelText: 'Select Member'),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: selectedMonth,
-                        items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(CalculationUtils.getMonthName(i + 1)))),
-                        onChanged: (val) => setDialogState(() => selectedMonth = val!),
-                        decoration: const InputDecoration(labelText: 'Month'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: selectedYear,
-                        items: [now.year - 1, now.year, now.year + 1].map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
-                        onChanged: (val) => setDialogState(() => selectedYear = val!),
-                        decoration: const InputDecoration(labelText: 'Year'),
-                      ),
-                    ),
-                  ],
-                ),
+                TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Loan Amount (₹)'), keyboardType: TextInputType.number),
                 const SizedBox(height: 12),
-                TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Paid Amount (₹)'), keyboardType: TextInputType.number),
+                TextField(controller: rateController, decoration: const InputDecoration(labelText: 'Monthly Interest Rate (%)'), keyboardType: TextInputType.number),
+                const SizedBox(height: 12),
+                TextField(controller: purposeController, decoration: const InputDecoration(labelText: 'Purpose (optional)')),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
                 if (selectedMember != null && amountController.text.isNotEmpty) {
-                  await widget.dataService.recordInvestment(
-                    member: selectedMember!,
-                    month: selectedMonth,
-                    year: selectedYear,
-                    amount: double.parse(amountController.text),
+                  final now = DateTime.now();
+                  final amount = double.parse(amountController.text);
+                  
+                  final loan = Loan(
+                    id: 'L_${now.millisecondsSinceEpoch}',
+                    groupId: provider.groupId,
+                    memberId: selectedMember!.id,
+                    originalPrincipal: amount,
+                    pendingPrincipal: amount,
+                    interestRate: double.parse(rateController.text),
+                    loanDate: now,
+                    purpose: purposeController.text,
+                    status: LoanStatus.active,
+                    createdAt: now,
+                    updatedAt: now,
                   );
-                  if (!context.mounted) return;
-                  Navigator.pop(context);
-                  setState(() {});
+
+                  final tx = AppTransaction(
+                    id: 'T_${now.millisecondsSinceEpoch}',
+                    memberId: selectedMember!.id,
+                    memberName: selectedMember!.name,
+                    type: TransactionType.loanIssue,
+                    amount: amount,
+                    date: now,
+                    description: 'Loan Issued: ₹$amount to ${selectedMember!.name}',
+                    referenceId: loan.id,
+                  );
+
+                  await provider.issueLoan(loan, tx);
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
                 }
               },
-              child: const Text('Record'),
+              child: const Text('Issue'),
             ),
           ],
         ),
-      ),
-    );
+      );
+    });
   }
 
-  void _showGiveLoanDialog() {
-    final members = widget.dataService.getMembers();
-    if (members.isEmpty) {
-      _showError('Please add a member first');
-      return;
-    }
+  void _showRepaymentDialog(BachatGatProvider provider) {
+    provider.watchLoans().first.then((loans) {
+      if (!mounted) return;
+      final activeLoans = loans.where((l) => l.status == LoanStatus.active).toList();
+      if (activeLoans.isEmpty) {
+        _showError('No active loans found');
+        return;
+      }
 
-    Member? selectedMember;
-    final amountController = TextEditingController();
-    final rateController = TextEditingController(text: widget.dataService.getSettings().defaultInterestRate.toString());
-    final purposeController = TextEditingController();
+      provider.watchMembers().first.then((membersList) {
+        if (!mounted) return;
+        final membersMap = {for (var m in membersList) m.id: m};
+        Loan? selectedLoan;
+        final principalController = TextEditingController(text: '0');
+        final haftaController = TextEditingController(text: '1000');
+        final now = DateTime.now();
+        int selectedMonth = now.month;
+        int selectedYear = now.year;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Give Loan'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<Member>(
-                items: members.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
-                onChanged: (val) => selectedMember = val,
-                decoration: const InputDecoration(labelText: 'Select Member'),
-              ),
-              const SizedBox(height: 12),
-              TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Loan Amount (₹)'), keyboardType: TextInputType.number),
-              const SizedBox(height: 12),
-              TextField(controller: rateController, decoration: const InputDecoration(labelText: 'Monthly Interest Rate (%)'), keyboardType: TextInputType.number),
-              const SizedBox(height: 12),
-              TextField(controller: purposeController, decoration: const InputDecoration(labelText: 'Purpose (optional)')),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (selectedMember != null && amountController.text.isNotEmpty) {
-                await widget.dataService.issueLoan(
-                  member: selectedMember!,
-                  amount: double.parse(amountController.text),
-                  rate: double.parse(rateController.text),
-                  purpose: purposeController.text,
-                );
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                setState(() {});
-              }
+        showDialog(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              final interestAmount = selectedLoan != null
+                  ? CalculationUtils.calculateMonthlyInterest(
+                      outstandingPrincipal: selectedLoan!.pendingPrincipal,
+                      annualRate: selectedLoan!.interestRate,
+                    )
+                  : 0.0;
+              final principalRepaid = double.tryParse(principalController.text) ?? 0.0;
+              final regularHafta = double.tryParse(haftaController.text) ?? 0.0;
+              final totalPayment = regularHafta + interestAmount + principalRepaid;
+
+              return AlertDialog(
+                title: const Text('Record Loan Repayment'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<Loan>(
+                        items: activeLoans.map((l) => DropdownMenuItem(value: l, child: Text('${membersMap[l.memberId]?.name ?? l.memberId}: ₹${l.pendingPrincipal.toStringAsFixed(0)}'))).toList(),
+                        onChanged: (val) {
+                          selectedLoan = val;
+                          if (val != null) {
+                            final m = membersMap[val.memberId];
+                            if (m != null) {
+                              haftaController.text = m.monthlyContribution.toStringAsFixed(0);
+                            }
+                          }
+                          setDialogState(() {});
+                        },
+                        decoration: const InputDecoration(labelText: 'Select Active Loan'),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              initialValue: selectedMonth,
+                              items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(CalculationUtils.getMonthName(i + 1)))),
+                              onChanged: (val) => setDialogState(() => selectedMonth = val!),
+                              decoration: const InputDecoration(labelText: 'Month'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<int>(
+                              initialValue: selectedYear,
+                              items: [now.year - 1, now.year, now.year + 1].map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
+                              onChanged: (val) => setDialogState(() => selectedYear = val!),
+                              decoration: const InputDecoration(labelText: 'Year'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (selectedLoan != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Pending: ₹${selectedLoan!.pendingPrincipal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                              Text('Interest (2%): ₹${interestAmount.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.interest, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: haftaController,
+                        decoration: const InputDecoration(labelText: 'Regular Hafta Amount (₹)'),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: principalController,
+                        decoration: const InputDecoration(labelText: 'Principal Repayment Amount (₹)'),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total Payment:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text(
+                              CalculationUtils.formatCurrency(totalPayment),
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (selectedLoan != null && totalPayment > 0) {
+                        if (principalRepaid > selectedLoan!.pendingPrincipal) {
+                          _showError('Principal repayment cannot exceed pending principal');
+                          return;
+                        }
+
+                        final recordDate = DateTime.now();
+                        final newClosing = selectedLoan!.pendingPrincipal - principalRepaid > 0
+                            ? selectedLoan!.pendingPrincipal - principalRepaid
+                            : 0.0;
+
+                        final repayment = LoanRepayment(
+                          id: 'R_${recordDate.millisecondsSinceEpoch}',
+                          loanId: selectedLoan!.id,
+                          groupId: provider.groupId,
+                          memberId: selectedLoan!.memberId,
+                          month: selectedMonth,
+                          year: selectedYear,
+                          openingPrincipal: selectedLoan!.pendingPrincipal,
+                          interestRate: selectedLoan!.interestRate,
+                          interestAmount: interestAmount,
+                          regularContribution: regularHafta,
+                          principalRepaid: principalRepaid,
+                          totalPaid: totalPayment,
+                          closingPrincipal: newClosing,
+                          paymentDate: recordDate,
+                          createdAt: recordDate,
+                          updatedAt: recordDate,
+                        );
+
+                        final contribution = MonthlyContribution(
+                          id: 'C_${recordDate.millisecondsSinceEpoch}',
+                          memberId: selectedLoan!.memberId,
+                          groupId: provider.groupId,
+                          month: selectedMonth,
+                          year: selectedYear,
+                          regularHaftaAmount: regularHafta,
+                          interestAmount: interestAmount,
+                          loanPrincipalPaid: principalRepaid,
+                          totalPaid: totalPayment,
+                          expectedAmount: regularHafta,
+                          paidAmount: totalPayment,
+                          status: ContributionStatus.paid,
+                          paymentDate: recordDate,
+                          createdAt: recordDate,
+                          updatedAt: recordDate,
+                        );
+
+                        final memberName = membersMap[selectedLoan!.memberId]?.name ?? 'Member';
+                        final tx = AppTransaction(
+                          id: 'T_${recordDate.millisecondsSinceEpoch}',
+                          memberId: selectedLoan!.memberId,
+                          memberName: memberName,
+                          type: TransactionType.loanRepayment,
+                          amount: totalPayment,
+                          date: recordDate,
+                          description: 'Repayment - ${CalculationUtils.getMonthName(selectedMonth)} $selectedYear (Hafta: ₹$regularHafta, Interest: ₹$interestAmount, Principal: ₹$principalRepaid)',
+                          referenceId: selectedLoan!.id,
+                        );
+
+                        await provider.recordLoanRepayment(
+                          loan: selectedLoan!,
+                          repayment: repayment,
+                          tx: tx,
+                          contribution: contribution,
+                        );
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                      }
+                    },
+                    child: const Text('Record'),
+                  ),
+                ],
+              );
             },
-            child: const Text('Issue'),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showRepaymentDialog() {
-    final loans = widget.dataService.getLoans().where((l) => l.status == LoanStatus.active).toList();
-    if (loans.isEmpty) {
-      _showError('No active loans found');
-      return;
-    }
-
-    final members = {for (var m in widget.dataService.getMembers()) m.id: m.name};
-    Loan? selectedLoan;
-    final amountController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Record Repayment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<Loan>(
-              items: loans.map((l) => DropdownMenuItem(value: l, child: Text('${members[l.memberId]}: ₹${l.outstandingPrincipal}'))).toList(),
-              onChanged: (val) => selectedLoan = val,
-              decoration: const InputDecoration(labelText: 'Select Active Loan'),
-            ),
-            const SizedBox(height: 12),
-            TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Repayment Amount (₹)'), keyboardType: TextInputType.number),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (selectedLoan != null && amountController.text.isNotEmpty) {
-                await widget.dataService.recordRepayment(
-                  loan: selectedLoan!,
-                  paymentAmount: double.parse(amountController.text),
-                );
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                setState(() {});
-              }
-            },
-            child: const Text('Record'),
-          ),
-        ],
-      ),
-    );
+        );
+      });
+    });
   }
 
   void _showError(String message) {

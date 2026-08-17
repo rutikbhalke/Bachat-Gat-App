@@ -1,45 +1,78 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
 import 'app/app.dart';
-import 'services/data_service.dart';
-import 'models/member.dart';
+import 'services/firebase_service.dart';
+import 'services/connectivity_test_service.dart';
+import 'repositories/group_repository.dart';
+import 'repositories/transaction_repository.dart';
+import 'providers/locale_provider.dart';
+import 'providers/bachat_gat_provider.dart';
+import 'services/report_service.dart';
+
+import 'services/business_flow_test_service.dart';
 
 void main() async {
+  // 1. FAST BINDING
   WidgetsFlutterBinding.ensureInitialized();
   
-  final prefs = await SharedPreferences.getInstance();
-  final dataService = DataService(prefs);
+  // 2. PARALLEL INITIALIZATION
+  late final SharedPreferences prefs;
+  await Future.wait([
+    () async {
+      try {
+        if (kIsWeb) {
+          await Firebase.initializeApp(
+            options: const FirebaseOptions(
+              apiKey: "AIzaSyBjHEvpL4KK4n3NeCjgK12VoQIn0AZfvQA",
+              appId: "1:1038306626235:web:7d054a950319db8fd3b79e",
+              messagingSenderId: "1038306626235",
+              projectId: "bachat-gat-app-9e38e",
+              storageBucket: "bachat-gat-app-9e38e.firebasestorage.app",
+            ),
+          );
+        } else {
+          await Firebase.initializeApp();
+        }
+        debugPrint("FIREBASE CORE INITIALIZATION: SUCCESS");
+        await ConnectivityTestService.runTest();
+      } catch (e) {
+        debugPrint("FIREBASE CORE INITIALIZATION: FAILED - $e");
+      }
+    }(),
+    () async {
+      prefs = await SharedPreferences.getInstance();
+    }(),
+  ]);
   
-  // Seed data if first run
-  if (dataService.getMembers().isEmpty) {
-    await _seedData(dataService);
-  }
+  // 3. SERVICE & REPO CREATION
+  final firebaseService = FirebaseService();
+  final groupRepo = GroupRepository(firebaseService);
+  final txRepo = TransactionRepository(firebaseService);
+  final reportService = ReportService(firebaseService);
 
-  runApp(
-    BachatGatApp(dataService: dataService),
+  // 4. RUN FULL REAL BUSINESS DATA FLOW TEST
+  BusinessFlowTestService.runFullBusinessFlowTest(
+    firebaseService: firebaseService,
+    groupRepo: groupRepo,
+    txRepo: txRepo,
   );
-}
 
-Future<void> _seedData(DataService ds) async {
-  final m1 = Member(id: 'M1', name: 'Ramesh Pawar', phone: '9876543210', joinDate: DateTime(2026, 1, 1), monthlyInvestment: 1000);
-  final m2 = Member(id: 'M2', name: 'Suresh Jadhav', phone: '9876543211', joinDate: DateTime(2026, 1, 1), monthlyInvestment: 1000);
-  final m3 = Member(id: 'M3', name: 'Priya Shinde', phone: '9876543212', joinDate: DateTime(2026, 2, 1), monthlyInvestment: 1500);
-
-  await ds.saveMembers([m1, m2, m3]);
-
-  // January
-  await ds.recordInvestment(member: m1, month: 1, year: 2026, amount: 1000);
-  await ds.recordInvestment(member: m2, month: 1, year: 2026, amount: 1000);
-  
-  // February
-  await ds.recordInvestment(member: m1, month: 2, year: 2026, amount: 1000);
-  await ds.recordInvestment(member: m2, month: 2, year: 2026, amount: 1000);
-  await ds.recordInvestment(member: m3, month: 2, year: 2026, amount: 1500);
-
-  // Loan to Ramesh
-  await ds.issueLoan(member: m1, amount: 50000, rate: 2.0, purpose: 'Home Repair');
-  
-  // Repayment
-  final loan = ds.getLoans().first;
-  await ds.recordRepayment(loan: loan, paymentAmount: 6000);
+  // 5. RUN APP IMMEDIATELY
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => BachatGatProvider(groupRepo, txRepo, reportService)),
+        Provider.value(value: firebaseService),
+        Provider.value(value: groupRepo),
+        Provider.value(value: txRepo),
+        Provider.value(value: reportService),
+        Provider.value(value: prefs),
+      ],
+      child: const BachatGatApp(),
+    ),
+  );
 }

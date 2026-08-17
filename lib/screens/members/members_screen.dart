@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../services/data_service.dart';
+import 'package:provider/provider.dart';
+import '../../providers/bachat_gat_provider.dart';
 import '../../models/member.dart';
 import '../../app/app_colors.dart';
 import '../../core/utils/calculation_utils.dart';
 import 'member_detail_screen.dart';
 
 class MembersScreen extends StatefulWidget {
-  final DataService dataService;
-
-  const MembersScreen({super.key, required this.dataService});
+  const MembersScreen({super.key});
 
   @override
   State<MembersScreen> createState() => _MembersScreenState();
@@ -16,14 +15,17 @@ class MembersScreen extends StatefulWidget {
 
 class _MembersScreenState extends State<MembersScreen> {
   String _searchQuery = '';
+  late Stream<List<Member>> _membersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final provider = Provider.of<BachatGatProvider>(context, listen: false);
+    _membersStream = provider.watchMembers();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final members = widget.dataService.getMembers().where((m) => 
-      m.name.toLowerCase().contains(_searchQuery.toLowerCase()) || 
-      m.phone.contains(_searchQuery)
-    ).toList();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -35,7 +37,7 @@ class _MembersScreenState extends State<MembersScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: TextField(
-              onChanged: (val) => setState(() => _searchQuery = val),
+              onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
               decoration: InputDecoration(
                 hintText: 'Search members...',
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
@@ -51,8 +53,20 @@ class _MembersScreenState extends State<MembersScreen> {
           ),
         ),
       ),
-      body: members.isEmpty
-          ? Center(
+      body: StreamBuilder<List<Member>>(
+        stream: _membersStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final members = (snapshot.data ?? []).where((m) => 
+            m.name.toLowerCase().contains(_searchQuery) || 
+            m.phone.contains(_searchQuery)
+          ).toList();
+
+          if (members.isEmpty) {
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -61,29 +75,32 @@ class _MembersScreenState extends State<MembersScreen> {
                   Text('No members found', style: TextStyle(color: AppColors.textSecondary)),
                 ],
               ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: members.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final member = members[index];
-                return _MemberCard(
-                  member: member,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MemberDetailScreen(
-                          dataService: widget.dataService,
-                          member: member,
-                        ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: members.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final member = members[index];
+              return _MemberCard(
+                member: member,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MemberDetailScreen(
+                        member: member,
                       ),
-                    ).then((_) => setState(() {}));
-                  },
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        }
+      ),
     );
   }
 }
@@ -144,7 +161,7 @@ class _MemberCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    CalculationUtils.formatCurrency(member.monthlyInvestment),
+                    CalculationUtils.formatCurrency(member.monthlyContribution),
                     style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 15),
                   ),
                   const Text('Monthly', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.textMuted)),
