@@ -20,6 +20,12 @@ class AppTheme {
       
       // Typography
       fontFamily: 'Inter',
+      fontFamilyFallback: const [
+        'Noto Sans Devanagari',
+        'Roboto',
+        'Arial Unicode MS',
+        'sans-serif',
+      ],
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
           fontSize: 28,

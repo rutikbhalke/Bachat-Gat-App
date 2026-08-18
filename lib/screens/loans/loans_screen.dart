@@ -5,6 +5,7 @@ import '../../models/loan.dart';
 import '../../models/member.dart';
 import '../../app/app_colors.dart';
 import '../../core/utils/calculation_utils.dart';
+import '../../l10n/app_localizations.dart';
 import 'loan_detail_screen.dart';
 
 class LoansScreen extends StatefulWidget {
@@ -28,6 +29,8 @@ class _LoansScreenState extends State<LoansScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return StreamBuilder<List<Loan>>(
       stream: _loansStream,
       builder: (context, loanSnapshot) {
@@ -49,19 +52,19 @@ class _LoansScreenState extends State<LoansScreen> {
               child: Scaffold(
                 backgroundColor: AppColors.background,
                 appBar: AppBar(
-                  title: const Text('Manage Loans'),
+                  title: Text(l10n.manageLoans),
                   backgroundColor: Colors.white,
                   surfaceTintColor: Colors.white,
-                  bottom: const TabBar(
+                  bottom: TabBar(
                     tabs: [
-                      Tab(text: 'Active Loans'),
-                      Tab(text: 'Closed'),
+                      Tab(text: l10n.activeLoansTab),
+                      Tab(text: l10n.closedLoansTab),
                     ],
                     indicatorColor: AppColors.primary,
                     labelColor: AppColors.primary,
                     unselectedLabelColor: AppColors.textMuted,
                     indicatorSize: TabBarIndicatorSize.label,
-                    labelStyle: TextStyle(fontWeight: FontWeight.bold),
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 body: TabBarView(
@@ -87,6 +90,8 @@ class _LoanList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     if (loans.isEmpty) {
       return Center(
         child: Column(
@@ -94,7 +99,7 @@ class _LoanList extends StatelessWidget {
           children: [
             Icon(Icons.account_balance_rounded, size: 64, color: AppColors.textMuted.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
-            const Text('No loans found', style: TextStyle(color: AppColors.textSecondary)),
+            Text(l10n.noLoansFound, style: const TextStyle(color: AppColors.textSecondary)),
           ],
         ),
       );
@@ -134,7 +139,11 @@ class _LoanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final progress = loan.originalPrincipal > 0 ? (1 - (loan.pendingPrincipal / loan.originalPrincipal)) : 1.0;
+    final rateStr = l10n.localeName == 'mr'
+        ? (loan.interestRate == 2 ? '२% / महिना' : '${loan.interestRate}% / महिना')
+        : '${loan.interestRate}% / mo';
 
     return Container(
       decoration: BoxDecoration(
@@ -183,9 +192,9 @@ class _LoanCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSmallInfo('Interest Rate', '${loan.interestRate}% / mo'),
-                  _buildSmallInfo('Outstanding', CalculationUtils.formatCurrency(loan.pendingPrincipal)),
-                  _buildSmallInfo('Repaid', '${(progress * 100).toStringAsFixed(0)}%'),
+                  _buildSmallInfo(l10n.interestRate, rateStr),
+                  _buildSmallInfo(l10n.outstanding, CalculationUtils.formatCurrency(loan.pendingPrincipal)),
+                  _buildSmallInfo(l10n.repaid, '${(progress * 100).toStringAsFixed(0)}%'),
                 ],
               ),
               const SizedBox(height: 15),

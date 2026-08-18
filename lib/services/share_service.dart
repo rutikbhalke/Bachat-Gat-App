@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 import '../models/report_models.dart';
 import '../models/member.dart';
 import '../core/utils/calculation_utils.dart';
@@ -6,10 +8,11 @@ import '../core/utils/calculation_utils.dart';
 class ShareService {
   static Future<void> shareMemberReceipt({
     required MemberMonthlyReport report,
-    required String filePath,
+    required Uint8List pdfBytes,
     required String languageCode,
   }) async {
     final monthName = CalculationUtils.getMonthName(report.month);
+    final filename = 'BG_Receipt_${report.member.name}_${report.month}_${report.year}.pdf';
     
     String message;
     if (languageCode == 'mr') {
@@ -34,19 +37,33 @@ class ShareService {
           "Please find the detailed receipt attached.";
     }
 
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: message,
-      subject: 'Bachat Gat Monthly Receipt',
-    );
+    if (kIsWeb) {
+      // On Web, initiate direct browser download and/or share
+      try {
+        await Share.shareXFiles(
+          [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+          text: message,
+          subject: 'Bachat Gat Monthly Receipt',
+        );
+      } catch (_) {
+        await Printing.sharePdf(bytes: pdfBytes, filename: filename);
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+        text: message,
+        subject: 'Bachat Gat Monthly Receipt',
+      );
+    }
   }
 
   static Future<void> shareGroupReport({
     required GroupMonthlyReport report,
-    required String filePath,
+    required Uint8List pdfBytes,
     required String languageCode,
   }) async {
     final monthName = CalculationUtils.getMonthName(report.month);
+    final filename = 'BG_Group_Report_${report.month}_${report.year}.pdf';
     
     String message;
     if (languageCode == 'mr') {
@@ -73,27 +90,52 @@ class ShareService {
           "Detailed collection register is attached.";
     }
 
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: message,
-      subject: 'Bachat Gat Monthly Collection Report',
-    );
+    if (kIsWeb) {
+      try {
+        await Share.shareXFiles(
+          [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+          text: message,
+          subject: 'Bachat Gat Monthly Collection Report',
+        );
+      } catch (_) {
+        await Printing.sharePdf(bytes: pdfBytes, filename: filename);
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+        text: message,
+        subject: 'Bachat Gat Monthly Collection Report',
+      );
+    }
   }
 
   static Future<void> shareMemberLedger({
     required Member member,
-    required String filePath,
+    required Uint8List pdfBytes,
     required String languageCode,
   }) async {
+    final filename = 'BG_Ledger_${member.name}.pdf';
     String message = languageCode == 'mr'
         ? "नमस्कार ${member.name},\n\nतुमचे बचत गटाचे खाते विवरण (Ledger Statement) जोडले आहे."
         : "Namaskar ${member.name},\n\nPlease find your Bachat Gat Account Statement (Ledger) attached.";
 
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: message,
-      subject: 'Bachat Gat Member Ledger Statement',
-    );
+    if (kIsWeb) {
+      try {
+        await Share.shareXFiles(
+          [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+          text: message,
+          subject: 'Bachat Gat Member Ledger Statement',
+        );
+      } catch (_) {
+        await Printing.sharePdf(bytes: pdfBytes, filename: filename);
+      }
+    } else {
+      await Share.shareXFiles(
+        [XFile.fromData(pdfBytes, mimeType: 'application/pdf', name: filename)],
+        text: message,
+        subject: 'Bachat Gat Member Ledger Statement',
+      );
+    }
   }
 
   static Future<void> sharePendingSummary({
@@ -103,7 +145,9 @@ class ShareService {
     required int year,
     required String languageCode,
   }) async {
-    final monthName = CalculationUtils.getMonthName(month);
+    final monthName = languageCode == 'mr'
+        ? CalculationUtils.getMonthNameMarathi(month)
+        : CalculationUtils.getMonthName(month);
     final totalPendingHafta = pendingList.fold<double>(0.0, (sum, p) => sum + p.pendingHafta);
     final totalPendingLoan = pendingList.fold<double>(0.0, (sum, p) => sum + p.pendingLoanPrincipal);
     final totalOverall = pendingList.fold<double>(0.0, (sum, p) => sum + p.totalPending);

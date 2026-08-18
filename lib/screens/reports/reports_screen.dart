@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../providers/bachat_gat_provider.dart';
 import '../../models/group.dart';
@@ -24,18 +23,87 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   late Stream<BachatGatGroup?> _groupStream;
   late TabController _tabController;
 
+  // Cached futures for lazy on-demand tab loading
+  Future<GroupMonthlyReport>? _monthlyReportFuture;
+  Future<List<PendingMemberReport>>? _pendingReportFuture;
+  Future<List<LoanReportItem>>? _loansReportFuture;
+
+  String _groupName = 'Shivshahi Bachat Gat';
+
   @override
   void initState() {
     super.initState();
+    debugPrint('[REPORT] SCREEN INIT: month=$_selectedMonth, year=$_selectedYear');
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_onTabChanged);
+
     final provider = Provider.of<BachatGatProvider>(context, listen: false);
+    debugPrint('[REPORT] GROUP ID = ${provider.groupId}');
+    debugPrint('[REPORT] MONTH/YEAR = $_selectedMonth/$_selectedYear');
     _groupStream = provider.watchGroup();
+
+    // Immediately start loading active tab (Tab 0: Monthly Register)
+    _monthlyReportFuture = provider.getGroupReport(
+      _groupName,
+      _selectedMonth,
+      _selectedYear,
+    );
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    debugPrint('[REPORT] TAB CHANGED TO: ${_tabController.index}');
+    _ensureTabLoaded(_tabController.index);
+  }
+
+  void _ensureTabLoaded(int tabIndex, {bool forceRefresh = false}) {
+    final provider = Provider.of<BachatGatProvider>(context, listen: false);
+    setState(() {
+      if (tabIndex == 0) {
+        if (_monthlyReportFuture == null || forceRefresh) {
+          debugPrint('[REPORT] Initiating Monthly Register tab load (forceRefresh=$forceRefresh)');
+          _monthlyReportFuture = provider.getGroupReport(
+            _groupName,
+            _selectedMonth,
+            _selectedYear,
+            forceRefresh: forceRefresh,
+          );
+        }
+      } else if (tabIndex == 1) {
+        if (_pendingReportFuture == null || forceRefresh) {
+          debugPrint('[REPORT] Initiating Pending Dues tab load (forceRefresh=$forceRefresh)');
+          _pendingReportFuture = provider.getPendingReport(
+            month: _selectedMonth,
+            year: _selectedYear,
+            forceRefresh: forceRefresh,
+          );
+        }
+      } else if (tabIndex == 2) {
+        if (_loansReportFuture == null || forceRefresh) {
+          debugPrint('[REPORT] Initiating Loans Overview tab load (forceRefresh=$forceRefresh)');
+          _loansReportFuture = provider.getLoanReport(forceRefresh: forceRefresh);
+        }
+      }
+    });
+  }
+
+  void _onDateChanged(int newMonth, int newYear) {
+    debugPrint('[REPORT] DATE CHANGED: month=$newMonth, year=$newYear');
+    setState(() {
+      _selectedMonth = newMonth;
+      _selectedYear = newYear;
+      // Invalidate month-dependent futures
+      _monthlyReportFuture = null;
+      _pendingReportFuture = null;
+    });
+    _ensureTabLoaded(_tabController.index, forceRefresh: true);
   }
 
   @override
@@ -49,36 +117,63 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
         title: Text(l10n.reports),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: l10n.refreshReport,
+            onPressed: () {
+              debugPrint('[REPORT] Manual Refresh Clicked');
+              provider.invalidateReports();
+              _ensureTabLoaded(_tabController.index, forceRefresh: true);
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(text: 'Monthly Register'),
-            Tab(text: 'Pending Dues'),
-            Tab(text: 'Loans Overview'),
+          tabs: [
+            Tab(text: l10n.monthlyRegister),
+            Tab(text: l10n.pendingDues),
+            Tab(text: l10n.loansOverview),
           ],
         ),
       ),
       body: StreamBuilder<BachatGatGroup?>(
         stream: _groupStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) {
+            debugPrint('[REPORT ERROR] Group stream encountered error: ${snapshot.error}');
           }
-          
-          final group = snapshot.data;
-          if (group == null) return const Center(child: Text('Group not found'));
+
+          final group = snapshot.data ??
+              BachatGatGroup(
+                id: provider.groupId,
+                name: _groupName,
+                managerId: 'manager_001',
+                monthlyTarget: 6000.0,
+                monthlyContributionAmount: 1000.0,
+                totalFund: 0.0,
+                totalSavings: 0.0,
+                totalOutstandingLoans: 0.0,
+                totalInterestCollected: 0.0,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              );
+
+          if (snapshot.hasData && snapshot.data != null && snapshot.data!.name != _groupName) {
+            _groupName = snapshot.data!.name;
+          }
 
           return TabBarView(
             controller: _tabController,
             children: [
-              // 1. Monthly Register Tab
+              // 1. Monthly Register Tab (loaded initially)
               _buildMonthlyRegisterTab(provider, group, l10n),
-              // 2. Pending Dues Tab
+              // 2. Pending Dues Tab (loaded on-demand when selected)
               _buildPendingDuesTab(provider, group, l10n),
-              // 3. Loans Overview Tab
+              // 3. Loans Overview Tab (loaded on-demand when selected)
               _buildLoansOverviewTab(provider, group, l10n),
             ],
           );
@@ -88,6 +183,12 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   }
 
   Widget _buildMonthlyRegisterTab(BachatGatProvider provider, BachatGatGroup group, AppLocalizations l10n) {
+    _monthlyReportFuture ??= provider.getGroupReport(
+      group.name,
+      _selectedMonth,
+      _selectedYear,
+    );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -95,33 +196,44 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
         children: [
           _buildGenerateReportCard(provider, group, l10n),
           const SizedBox(height: 24),
-          
+
           Text(l10n.collectionSummary.toUpperCase(), style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 16),
           _buildReportItem(context, l10n.totalSavings, group.totalSavings, Icons.savings_rounded, AppColors.success),
-          _buildReportItem(context, 'Total Interest (2%)', group.totalInterestCollected, Icons.percent_rounded, AppColors.interest),
-          _buildReportItem(context, 'Outstanding Principal', group.totalOutstandingLoans, Icons.history_rounded, AppColors.error),
-          _buildReportItem(context, 'Available Group Balance', group.totalFund, Icons.account_balance_wallet_rounded, AppColors.primary),
-          
+          _buildReportItem(context, l10n.totalInterest2Percent, group.totalInterestCollected, Icons.percent_rounded, AppColors.interest),
+          _buildReportItem(context, l10n.outstandingPrincipal, group.totalOutstandingLoans, Icons.history_rounded, AppColors.error),
+          _buildReportItem(context, l10n.availableGroupBalance, CalculationUtils.calculateAvailableCash(group.totalFund), Icons.account_balance_wallet_rounded, AppColors.primary),
+
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('MONTHLY REGISTER BREAKDOWN', style: Theme.of(context).textTheme.labelLarge),
-              Text('${CalculationUtils.getMonthName(_selectedMonth)} $_selectedYear', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
+              Text(l10n.monthlyRegisterBreakdown.toUpperCase(), style: Theme.of(context).textTheme.labelLarge),
+              Text(
+                '${l10n.localeName == 'mr' ? CalculationUtils.getMonthNameMarathi(_selectedMonth) : CalculationUtils.getMonthName(_selectedMonth)} $_selectedYear',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          
+
           FutureBuilder<GroupMonthlyReport>(
-            future: provider.getGroupReport(group.name, _selectedMonth, _selectedYear),
+            future: _monthlyReportFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
+                return const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()));
               }
+
+              if (snapshot.hasError) {
+                debugPrint('[REPORT ERROR] Monthly Register UI error: ${snapshot.error}');
+                return _buildErrorCard('Failed to load monthly register: ${snapshot.error}', () {
+                  _ensureTabLoaded(0, forceRefresh: true);
+                });
+              }
+
               final report = snapshot.data;
               if (report == null || report.memberReports.isEmpty) {
-                return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No collection records for this month')));
+                return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(l10n.noCollectionRecordsForMonth)));
               }
 
               return ListView.separated(
@@ -155,16 +267,16 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Hafta: ${CalculationUtils.formatCurrency(mr.paidHafta)}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            Text('${l10n.hafta}: ${CalculationUtils.formatCurrency(mr.paidHafta)}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                             if (mr.interestAmount > 0)
-                              Text('Interest (2%): ${CalculationUtils.formatCurrency(mr.interestAmount)}', style: const TextStyle(fontSize: 11, color: AppColors.interest)),
+                              Text('${l10n.interest} (2%): ${CalculationUtils.formatCurrency(mr.interestAmount)}', style: const TextStyle(fontSize: 11, color: AppColors.interest)),
                             if (mr.principalRepaid > 0)
-                              Text('Principal: ${CalculationUtils.formatCurrency(mr.principalRepaid)}', style: const TextStyle(fontSize: 11, color: AppColors.primary)),
+                              Text('${l10n.principal}: ${CalculationUtils.formatCurrency(mr.principalRepaid)}', style: const TextStyle(fontSize: 11, color: AppColors.primary)),
                           ],
                         ),
                         if (mr.closingPrincipal > 0) ...[
                           const SizedBox(height: 4),
-                          Text('Pending Loan: ${CalculationUtils.formatCurrency(mr.closingPrincipal)}', style: const TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.w600)),
+                          Text('${l10n.pendingLoan}: ${CalculationUtils.formatCurrency(mr.closingPrincipal)}', style: const TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.w600)),
                         ],
                       ],
                     ),
@@ -179,12 +291,27 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   }
 
   Widget _buildPendingDuesTab(BachatGatProvider provider, BachatGatGroup group, AppLocalizations l10n) {
+    _pendingReportFuture ??= provider.getPendingReport(month: _selectedMonth, year: _selectedYear);
+
     return FutureBuilder<List<PendingMemberReport>>(
-      future: provider.getPendingReport(month: _selectedMonth, year: _selectedYear),
+      future: _pendingReportFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+
+        if (snapshot.hasError) {
+          debugPrint('[REPORT ERROR] Pending Dues UI error: ${snapshot.error}');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildErrorCard('Failed to load pending dues: ${snapshot.error}', () {
+                _ensureTabLoaded(1, forceRefresh: true);
+              }),
+            ),
+          );
+        }
+
         final pendingList = snapshot.data ?? [];
 
         return SingleChildScrollView(
@@ -208,23 +335,25 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Pending Dues Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          Text('${pendingList.length} members have pending balance', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          Text(l10n.pendingDuesSummary, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text('${pendingList.length} ${l10n.membersPendingBalance}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                         ],
                       ),
                     ),
                     ElevatedButton.icon(
-                      onPressed: pendingList.isEmpty ? null : () {
-                        ShareService.sharePendingSummary(
-                          pendingList: pendingList,
-                          groupName: group.name,
-                          month: _selectedMonth,
-                          year: _selectedYear,
-                          languageCode: l10n.localeName,
-                        );
-                      },
+                      onPressed: pendingList.isEmpty
+                          ? null
+                          : () {
+                              ShareService.sharePendingSummary(
+                                pendingList: pendingList,
+                                groupName: group.name,
+                                month: _selectedMonth,
+                                year: _selectedYear,
+                                languageCode: l10n.localeName,
+                              );
+                            },
                       icon: const Icon(Icons.share_outlined, size: 14),
-                      label: const Text('Share', style: TextStyle(fontSize: 12)),
+                      label: Text(l10n.share, style: const TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning,
                         foregroundColor: Colors.white,
@@ -237,14 +366,14 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
               const SizedBox(height: 20),
 
               if (pendingList.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.all(40),
+                    padding: const EdgeInsets.all(40),
                     child: Column(
                       children: [
-                        Icon(Icons.check_circle_outline_rounded, size: 48, color: AppColors.success),
-                        SizedBox(height: 12),
-                        Text('All collections up to date! No pending dues.', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
+                        const Icon(Icons.check_circle_outline_rounded, size: 48, color: AppColors.success),
+                        const SizedBox(height: 12),
+                        Text(l10n.allCollectionsUpToDate, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
                       ],
                     ),
                   ),
@@ -279,11 +408,11 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                           ),
                           const SizedBox(height: 8),
                           if (p.pendingHafta > 0)
-                            Text('• Pending Hafta: ${CalculationUtils.formatCurrency(p.pendingHafta)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            Text('• ${l10n.pendingHafta}: ${CalculationUtils.formatCurrency(p.pendingHafta)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                           if (p.pendingLoanPrincipal > 0)
-                            Text('• Outstanding Loan Principal: ${CalculationUtils.formatCurrency(p.pendingLoanPrincipal)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            Text('• ${l10n.outstandingLoanPrincipal}: ${CalculationUtils.formatCurrency(p.pendingLoanPrincipal)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                           if (p.pendingInterest > 0)
-                            Text('• Pending Interest (2%): ${CalculationUtils.formatCurrency(p.pendingInterest)}', style: const TextStyle(fontSize: 12, color: AppColors.interest)),
+                            Text('• ${l10n.pendingInterest2Percent}: ${CalculationUtils.formatCurrency(p.pendingInterest)}', style: const TextStyle(fontSize: 12, color: AppColors.interest)),
                         ],
                       ),
                     );
@@ -297,16 +426,31 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   }
 
   Widget _buildLoansOverviewTab(BachatGatProvider provider, BachatGatGroup group, AppLocalizations l10n) {
+    _loansReportFuture ??= provider.getLoanReport();
+
     return FutureBuilder<List<LoanReportItem>>(
-      future: provider.getLoanReport(),
+      future: _loansReportFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+
+        if (snapshot.hasError) {
+          debugPrint('[REPORT ERROR] Loans Overview UI error: ${snapshot.error}');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildErrorCard('Failed to load loans overview: ${snapshot.error}', () {
+                _ensureTabLoaded(2, forceRefresh: true);
+              }),
+            ),
+          );
+        }
+
         final loans = snapshot.data ?? [];
 
         if (loans.isEmpty) {
-          return const Center(child: Text('No loans issued yet', style: TextStyle(color: AppColors.textMuted)));
+          return Center(child: Text(l10n.noLoansIssuedYet, style: const TextStyle(color: AppColors.textMuted)));
         }
 
         return ListView.separated(
@@ -350,17 +494,17 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _smallStat('Original Loan', CalculationUtils.formatCurrency(item.loan.originalPrincipal)),
-                      _smallStat('Principal Paid', CalculationUtils.formatCurrency(item.totalPrincipalPaid)),
-                      _smallStat('Interest Paid (2%)', CalculationUtils.formatCurrency(item.totalInterestPaid)),
+                      _smallStat(l10n.originalLoan, CalculationUtils.formatCurrency(item.loan.originalPrincipal)),
+                      _smallStat(l10n.principalPaid, CalculationUtils.formatCurrency(item.totalPrincipalPaid)),
+                      _smallStat(l10n.interestPaid2Percent, CalculationUtils.formatCurrency(item.totalInterestPaid)),
                     ],
                   ),
                   const Divider(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Remaining: ${CalculationUtils.formatCurrency(item.currentPendingPrincipal)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.error)),
-                      Text('Repayments: ${item.repaymentCount}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      Text('${l10n.remaining}: ${CalculationUtils.formatCurrency(item.currentPendingPrincipal)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.error)),
+                      Text('${l10n.repayments}: ${item.repaymentCount}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
                     ],
                   ),
                 ],
@@ -369,6 +513,36 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
           },
         );
       },
+    );
+  }
+
+  Widget _buildErrorCard(String message, VoidCallback onRetry) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 36),
+          const SizedBox(height: 10),
+          Text(message, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -413,8 +587,10 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                     dropdownColor: AppColors.primary,
                     underline: const SizedBox(),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(CalculationUtils.getMonthName(i + 1)))),
-                    onChanged: (val) => setState(() => _selectedMonth = val!),
+                    items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(l10n.localeName == 'mr' ? CalculationUtils.getMonthNameMarathi(i + 1) : CalculationUtils.getMonthName(i + 1)))),
+                    onChanged: (val) {
+                      if (val != null) _onDateChanged(val, _selectedYear);
+                    },
                   ),
                 ),
               ),
@@ -430,7 +606,9 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                     underline: const SizedBox(),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     items: [2025, 2026, 2027].map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
-                    onChanged: (val) => setState(() => _selectedYear = val!),
+                    onChanged: (val) {
+                      if (val != null) _onDateChanged(_selectedMonth, val);
+                    },
                   ),
                 ),
               ),
@@ -482,8 +660,9 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
 
     try {
       final report = await provider.getGroupReport(group.name, _selectedMonth, _selectedYear);
-      
-      final labels = {
+
+      final Map<String, String> labels = {
+        'groupName': group.name,
         'groupMonthlyReport': l10n.groupMonthlyReport,
         'totalMembers': l10n.totalMembers,
         'date': l10n.date,
@@ -504,15 +683,12 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
         'principal': l10n.principal,
         'total': l10n.total,
         'pendingLoan': l10n.pendingLoan,
+        'isMarathi': (l10n.localeName == 'mr').toString(),
       };
 
-      final dir = await getTemporaryDirectory();
-      final filePath = '${dir.path}/BG_Group_Report_${_selectedMonth}_$_selectedYear.pdf';
-      
-      final file = await PdfService.generateGroupReport(
+      final pdfBytes = await PdfService.generateGroupReportBytes(
         report: report,
         labels: labels,
-        filePath: filePath,
       );
 
       if (!mounted) return;
@@ -521,13 +697,15 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
       if (isShare) {
         await ShareService.shareGroupReport(
           report: report,
-          filePath: file.path,
+          pdfBytes: pdfBytes,
           languageCode: l10n.localeName,
         );
       } else {
-        await Printing.layoutPdf(onLayout: (format) async => file.readAsBytes());
+        await Printing.layoutPdf(
+          name: 'BG_Group_Report_${_selectedMonth}_$_selectedYear.pdf',
+          onLayout: (format) async => pdfBytes,
+        );
       }
-      
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close loading

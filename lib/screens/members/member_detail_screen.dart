@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../providers/bachat_gat_provider.dart';
 import '../../models/member.dart';
@@ -27,6 +26,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
   late Stream<List<MonthlyContribution>> _contributionsStream;
   late Stream<List<Loan>> _loansStream;
   late TabController _tabController;
+  Future<List<MemberLedgerEntry>>? _ledgerFuture;
 
   @override
   void initState() {
@@ -356,11 +356,38 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
   }
 
   Widget _buildLedgerTab(BachatGatProvider provider) {
+    _ledgerFuture ??= provider.getMemberLedger(_member.id);
+
     return FutureBuilder<List<MemberLedgerEntry>>(
-      future: provider.getMemberLedger(_member.id),
+      future: _ledgerFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 36),
+                  const SizedBox(height: 8),
+                  const Text('Failed to load ledger', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _ledgerFuture = provider.getMemberLedger(_member.id, forceRefresh: true);
+                      });
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
         }
         final entries = snapshot.data ?? [];
         if (entries.isEmpty) {
@@ -488,14 +515,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
     try {
       final entries = await provider.getMemberLedger(_member.id);
       final group = await provider.watchGroup().first;
-      final dir = await getTemporaryDirectory();
-      final filePath = '${dir.path}/BG_Ledger_${_member.name}.pdf';
 
-      final file = await PdfService.generateMemberLedgerPdf(
+      final pdfBytes = await PdfService.generateMemberLedgerBytes(
         member: _member,
         entries: entries,
         groupName: group?.name ?? 'Bachat Gat',
-        filePath: filePath,
       );
 
       if (!mounted) return;
@@ -503,7 +527,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
 
       await ShareService.shareMemberLedger(
         member: _member,
-        filePath: file.path,
+        pdfBytes: pdfBytes,
         languageCode: l10n.localeName,
       );
     } catch (e) {
@@ -544,13 +568,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
         'totalPaid': l10n.totalPaid,
       };
 
-      final dir = await getTemporaryDirectory();
-      final filePath = '${dir.path}/BG_Receipt_${_member.name}_${month}_$year.pdf';
-      
-      final file = await PdfService.generateMemberReceipt(
+      final pdfBytes = await PdfService.generateMemberReceiptBytes(
         report: report,
         labels: labels,
-        filePath: filePath,
       );
 
       if (!mounted) return;
@@ -559,11 +579,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
       if (isShare) {
         await ShareService.shareMemberReceipt(
           report: report,
-          filePath: file.path,
+          pdfBytes: pdfBytes,
           languageCode: l10n.localeName,
         );
       } else {
-        await Printing.layoutPdf(onLayout: (format) async => file.readAsBytes());
+        await Printing.layoutPdf(
+          name: 'BG_Receipt_${_member.name}_${month}_$year.pdf',
+          onLayout: (format) async => pdfBytes,
+        );
       }
       
     } catch (e) {

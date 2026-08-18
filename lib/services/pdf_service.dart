@@ -1,10 +1,13 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/report_models.dart';
 import '../models/member.dart';
 import '../core/utils/calculation_utils.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/app_localizations_mr.dart';
+import '../l10n/app_localizations_en.dart';
 
 class PdfService {
   static Future<pw.Font> getFont() async {
@@ -15,14 +18,57 @@ class PdfService {
     return await PdfGoogleFonts.notoSansDevanagariBold();
   }
 
-  static Future<File> generateMemberReceipt({
+  /// Helper to determine if the report is in Marathi
+  static bool _isMarathi(Map<String, String> labels) {
+    return labels['isMarathi'] == 'true' ||
+        labels['member'] == 'सभासद' ||
+        (labels['groupMonthlyReport'] != null && labels['groupMonthlyReport']!.contains('गट'));
+  }
+
+  /// Direct centralized localization provider
+  static AppLocalizations _getL10n(Map<String, String> labels) {
+    if (_isMarathi(labels)) {
+      return AppLocalizationsMr();
+    }
+    return AppLocalizationsEn();
+  }
+
+  /// Generates Member Monthly Receipt PDF bytes directly in-memory.
+  /// Works across all platforms (Android, iOS, Web, Desktop).
+  static Future<Uint8List> generateMemberReceiptBytes({
     required MemberMonthlyReport report,
     required Map<String, String> labels,
-    required String filePath,
   }) async {
     final pdf = pw.Document();
     final font = await getFont();
     final boldFont = await getBoldFont();
+    final isMarathi = _isMarathi(labels);
+    final l10n = _getL10n(labels);
+    final memberDisplayName = report.member.name;
+
+    final receiptTitle = l10n.monthlyReceipt;
+    final memberLabel = l10n.member;
+    final phoneLabel = l10n.phone;
+    final monthLabel = l10n.month;
+    final monthYearText = isMarathi
+        ? '${CalculationUtils.getMonthNameMarathi(report.month)} ${report.year}'
+        : '${CalculationUtils.getMonthName(report.month)} ${report.year}';
+
+    final contributionTitle = l10n.monthlyContribution;
+    final regularHaftaLabel = l10n.regularHafta;
+    final amountPaidLabel = l10n.amountPaid;
+    final pendingHaftaLabel = l10n.totalHaftaPending;
+
+    final loanTitle = l10n.loan;
+    final openingLoanLabel = l10n.openingLoan;
+    final interestRateLabel = l10n.interestRate;
+    final monthlyInterestLabel = l10n.monthlyInterest;
+    final loanRepaidLabel = l10n.loanRepaid;
+    final closingLoanLabel = l10n.closingLoan;
+
+    final totalTitle = l10n.total;
+    final totalPaidLabel = l10n.totalPaid;
+    final footerText = isMarathi ? 'तुमच्या सहभागाबद्दल धन्यवाद!' : 'Thank you for your contribution!';
 
     pdf.addPage(
       pw.Page(
@@ -37,14 +83,14 @@ class PdfService {
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('BG-${report.year}-${report.month.toString().padLeft(2, '0')}-${report.member.id.substring(0, 4)}', style: const pw.TextStyle(fontSize: 10)),
+                    pw.Text('BG-${report.year}-${report.month.toString().padLeft(2, '0')}-${report.member.id.length >= 4 ? report.member.id.substring(0, 4) : report.member.id}', style: const pw.TextStyle(fontSize: 10)),
                     pw.Text(labels['groupName'] ?? '', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
                     pw.Text(CalculationUtils.formatShortDate(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
                   ],
                 ),
               ),
               pw.SizedBox(height: 20),
-              pw.Center(child: pw.Text(labels['monthlyReceipt'] ?? 'Monthly Receipt', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16))),
+              pw.Center(child: pw.Text(receiptTitle, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16))),
               pw.SizedBox(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -52,43 +98,43 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('${labels['member']}: ${report.member.name}'),
-                      pw.Text('${labels['phone']}: ${report.member.phone}'),
+                      pw.Text('$memberLabel: $memberDisplayName'),
+                      pw.Text('$phoneLabel: ${report.member.phone}'),
                     ],
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text('${labels['month']}: ${CalculationUtils.getMonthName(report.month)} ${report.year}'),
+                      pw.Text('$monthLabel: $monthYearText'),
                     ],
                   ),
                 ],
               ),
               pw.SizedBox(height: 30),
               
-              _buildSectionTitle(labels['monthlyContribution'] ?? 'Monthly Contribution', boldFont),
-              _buildRow(labels['regularHafta'] ?? 'Regular Hafta', report.expectedHafta),
-              _buildRow(labels['amountPaid'] ?? 'Amount Paid', report.paidHafta),
-              _buildRow(labels['pending'] ?? 'Pending', report.pendingHafta, isError: report.pendingHafta > 0),
+              _buildSectionTitle(contributionTitle, boldFont),
+              _buildRow(regularHaftaLabel, report.expectedHafta),
+              _buildRow(amountPaidLabel, report.paidHafta),
+              _buildRow(pendingHaftaLabel, report.pendingHafta, isError: report.pendingHafta > 0),
               
               pw.SizedBox(height: 20),
               
-              _buildSectionTitle(labels['loan'] ?? 'Loan', boldFont),
-              _buildRow(labels['openingLoan'] ?? 'Opening Loan', report.openingPrincipal),
-              _buildRow(labels['interestRate'] ?? 'Interest Rate', report.interestRate, isPercent: true),
-              _buildRow(labels['monthlyInterest'] ?? 'Monthly Interest', report.interestAmount),
-              _buildRow(labels['loanRepaid'] ?? 'Loan Principal Repaid', report.principalRepaid),
-              _buildRow(labels['closingLoan'] ?? 'Closing Pending Loan', report.closingPrincipal),
+              _buildSectionTitle(loanTitle, boldFont),
+              _buildRow(openingLoanLabel, report.openingPrincipal),
+              _buildRow(interestRateLabel, report.interestRate, isPercent: true),
+              _buildRow(monthlyInterestLabel, report.interestAmount),
+              _buildRow(loanRepaidLabel, report.principalRepaid),
+              _buildRow(closingLoanLabel, report.closingPrincipal),
               
               pw.SizedBox(height: 20),
               pw.Divider(),
               
-              _buildSectionTitle(labels['total'] ?? 'Total', boldFont),
-              _buildRow(labels['totalPaid'] ?? 'Total Paid', report.totalPaid, isBold: true),
+              _buildSectionTitle(totalTitle, boldFont),
+              _buildRow(totalPaidLabel, report.totalPaid, isBold: true),
               
               pw.Spacer(),
               pw.Center(
-                child: pw.Text('Thank you for your contribution!', style: const pw.TextStyle(fontSize: 10)),
+                child: pw.Text(footerText, style: const pw.TextStyle(fontSize: 10)),
               ),
             ],
           );
@@ -96,19 +142,51 @@ class PdfService {
       ),
     );
 
-    final file = File(filePath);
-    await file.writeAsBytes(await pdf.save());
-    return file;
+    return pdf.save();
   }
 
-  static Future<File> generateGroupReport({
+  /// Generates Group Monthly Report PDF bytes directly in-memory.
+  /// Works across all platforms (Android, iOS, Web, Desktop).
+  static Future<Uint8List> generateGroupReportBytes({
     required GroupMonthlyReport report,
     required Map<String, String> labels,
-    required String filePath,
   }) async {
     final pdf = pw.Document();
     final font = await getFont();
     final boldFont = await getBoldFont();
+    final isMarathi = _isMarathi(labels);
+    final l10n = _getL10n(labels);
+
+    // Precise terminology directly sourced from AppLocalizations
+    final titleText = l10n.groupMonthlyReport;
+    final totalMembersLabel = l10n.totalMembers;
+    final dateLabel = l10n.date;
+    final monthYearText = isMarathi
+        ? '${CalculationUtils.getMonthNameMarathi(report.month)} ${report.year}'
+        : '${CalculationUtils.getMonthName(report.month)} ${report.year}';
+
+    final collectionSummaryTitle = l10n.collectionSummary;
+    final totalExpectedHaftaLabel = l10n.totalExpectedHafta;
+    final totalHaftaCollectedLabel = l10n.totalHaftaCollected;
+    final totalHaftaPendingLabel = l10n.totalHaftaPending;
+
+    final loanSummaryTitle = l10n.loanSummary;
+    final totalActiveLoansLabel = l10n.totalActiveLoans;
+    final totalPrincipalRepaidLabel = l10n.totalPrincipalRepaid;
+    final totalInterestCollectedLabel = l10n.totalInterestCollected;
+    final totalOutstandingLoanLabel = l10n.totalOutstandingLoan;
+
+    final totalCollectionLabel = l10n.totalCollection;
+
+    final memberWiseSummaryTitle = l10n.memberWiseSummary;
+
+    // Table Column Headers
+    final tableColMember = l10n.member;
+    final tableColHafta = l10n.hafta;
+    final tableColInterest = l10n.interest;
+    final tableColPrincipal = l10n.principal;
+    final tableColTotal = l10n.total;
+    final tableColOutstanding = l10n.pendingLoan;
 
     pdf.addPage(
       pw.MultiPage(
@@ -118,66 +196,67 @@ class PdfService {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text(report.groupName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.Text('${CalculationUtils.getMonthName(report.month)} ${report.year}'),
+            pw.Text(monthYearText),
           ],
         ),
         build: (pw.Context context) {
           return [
             pw.SizedBox(height: 20),
-            pw.Center(child: pw.Text(labels['groupMonthlyReport'] ?? 'Group Monthly Report', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16))),
+            pw.Center(child: pw.Text(titleText, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16))),
             pw.SizedBox(height: 20),
             
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text('${labels['totalMembers']}: ${report.totalMembers}'),
-                pw.Text('${labels['date']}: ${CalculationUtils.formatShortDate(DateTime.now())}'),
+                pw.Text('$totalMembersLabel: ${report.totalMembers}'),
+                pw.Text('$dateLabel: ${CalculationUtils.formatShortDate(DateTime.now())}'),
               ],
             ),
             
             pw.SizedBox(height: 20),
-            _buildSectionTitle(labels['collectionSummary'] ?? 'Collection Summary', boldFont),
-            _buildRow(labels['totalExpectedHafta'] ?? 'Total Expected Hafta', report.totalExpectedHafta),
-            _buildRow(labels['totalHaftaCollected'] ?? 'Total Hafta Collected', report.totalCollectedHafta),
-            _buildRow(labels['totalHaftaPending'] ?? 'Total Hafta Pending', report.totalPendingHafta, isError: report.totalPendingHafta > 0),
+            _buildSectionTitle(collectionSummaryTitle, boldFont),
+            _buildRow(totalExpectedHaftaLabel, report.totalExpectedHafta),
+            _buildRow(totalHaftaCollectedLabel, report.totalCollectedHafta),
+            _buildRow(totalHaftaPendingLabel, report.totalPendingHafta, isError: report.totalPendingHafta > 0),
             
             pw.SizedBox(height: 20),
-            _buildSectionTitle(labels['loanSummary'] ?? 'Loan Summary', boldFont),
-            _buildRow(labels['totalActiveLoans'] ?? 'Total Active Loans', report.totalActiveLoans),
-            _buildRow(labels['totalPrincipalRepaid'] ?? 'Total Principal Repaid', report.totalPrincipalRepaid),
-            _buildRow(labels['totalInterestCollected'] ?? 'Total Interest Collected', report.totalInterestCollected),
-            _buildRow(labels['totalOutstandingLoan'] ?? 'Total Outstanding Loan', report.totalOutstandingLoan),
+            _buildSectionTitle(loanSummaryTitle, boldFont),
+            _buildRow(totalActiveLoansLabel, report.totalActiveLoans),
+            _buildRow(totalPrincipalRepaidLabel, report.totalPrincipalRepaid),
+            _buildRow(totalInterestCollectedLabel, report.totalInterestCollected),
+            _buildRow(totalOutstandingLoanLabel, report.totalOutstandingLoan),
             
             pw.SizedBox(height: 20),
-            _buildSectionTitle(labels['totalCollection'] ?? 'Total Collection', boldFont),
-            _buildRow(labels['totalCollection'] ?? 'Total Collection', report.totalCollection, isBold: true),
+            _buildRow(totalCollectionLabel, report.totalCollection, isBold: true),
             
             pw.SizedBox(height: 30),
-            _buildSectionTitle(labels['memberWiseSummary'] ?? 'Member-wise Summary', boldFont),
+            _buildSectionTitle(memberWiseSummaryTitle, boldFont),
             pw.Table(
               border: pw.TableBorder.all(),
               children: [
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColors.grey300),
                   children: [
-                    _cell(labels['member'] ?? 'Member', isBold: true),
-                    _cell(labels['hafta'] ?? 'Hafta', isBold: true),
-                    _cell(labels['interest'] ?? 'Interest (2%)', isBold: true),
-                    _cell(labels['principal'] ?? 'Principal', isBold: true),
-                    _cell(labels['total'] ?? 'Total Paid', isBold: true),
-                    _cell(labels['pendingLoan'] ?? 'Pending Loan', isBold: true),
+                    _cell(tableColMember, isBold: true),
+                    _cell(tableColHafta, isBold: true),
+                    _cell(tableColInterest, isBold: true),
+                    _cell(tableColPrincipal, isBold: true),
+                    _cell(tableColTotal, isBold: true),
+                    _cell(tableColOutstanding, isBold: true),
                   ],
                 ),
-                ...report.memberReports.map((r) => pw.TableRow(
-                  children: [
-                    _cell(r.member.name),
-                    _cell(CalculationUtils.formatCurrency(r.paidHafta)),
-                    _cell(CalculationUtils.formatCurrency(r.interestAmount)),
-                    _cell(CalculationUtils.formatCurrency(r.principalRepaid)),
-                    _cell(CalculationUtils.formatCurrency(r.totalPaid)),
-                    _cell(CalculationUtils.formatCurrency(r.closingPrincipal)),
-                  ],
-                )),
+                ...report.memberReports.map((r) {
+                  return pw.TableRow(
+                    children: [
+                      _cell(r.member.name),
+                      _cell(CalculationUtils.formatCurrency(r.paidHafta)),
+                      _cell(CalculationUtils.formatCurrency(r.interestAmount)),
+                      _cell(CalculationUtils.formatCurrency(r.principalRepaid)),
+                      _cell(CalculationUtils.formatCurrency(r.totalPaid)),
+                      _cell(CalculationUtils.formatCurrency(r.closingPrincipal)),
+                    ],
+                  );
+                }),
               ],
             ),
           ];
@@ -185,16 +264,15 @@ class PdfService {
       ),
     );
 
-    final file = File(filePath);
-    await file.writeAsBytes(await pdf.save());
-    return file;
+    return pdf.save();
   }
 
-  static Future<File> generateMemberLedgerPdf({
+  /// Generates Member Ledger PDF bytes directly in-memory.
+  /// Works across all platforms (Android, iOS, Web, Desktop).
+  static Future<Uint8List> generateMemberLedgerBytes({
     required Member member,
     required List<MemberLedgerEntry> entries,
     required String groupName,
-    required String filePath,
   }) async {
     final pdf = pw.Document();
     final font = await getFont();
@@ -253,9 +331,7 @@ class PdfService {
       ),
     );
 
-    final file = File(filePath);
-    await file.writeAsBytes(await pdf.save());
-    return file;
+    return pdf.save();
   }
 
   static pw.Widget _buildSectionTitle(String title, pw.Font boldFont) {

@@ -6,10 +6,10 @@ class BachatGatGroup {
   final double monthlyContributionAmount;
   
   // Denormalized totals for dashboard
-  final double totalFund; 
-  final double totalSavings;
-  final double totalOutstandingLoans;
-  final double totalInterestCollected;
+  final double totalFund; // Current available cash balance in group
+  final double totalSavings; // Total accumulated regular member savings
+  final double totalOutstandingLoans; // Current active loan principal outstanding
+  final double totalInterestCollected; // Total accumulated loan interest collected
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -27,6 +27,15 @@ class BachatGatGroup {
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Actual available lending fund for the group (never negative): Total Savings - Total Outstanding Loans.
+  double get availableFund => (totalSavings - totalOutstandingLoans) > 0 ? (totalSavings - totalOutstandingLoans) : 0.0;
+
+  /// Actual available cash balance for disbursement/expenses (never negative).
+  double get availableCash => totalFund > 0 ? totalFund : 0.0;
+
+  /// Total group worth / assets = Available Cash + Active Loan Principal Outstanding.
+  double get totalGroupAssets => availableCash + totalOutstandingLoans;
 
   Map<String, dynamic> toJson() => {
         'id': id,

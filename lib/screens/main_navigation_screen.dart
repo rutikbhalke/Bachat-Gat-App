@@ -428,10 +428,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _showGiveLoanDialog(BachatGatProvider provider) {
-    provider.watchMembers().first.then((members) {
+    provider.watchMembers().first.then((members) async {
       if (!mounted) return;
       if (members.isEmpty) {
         _showError('Please add a member first');
+        return;
+      }
+
+      final group = await provider.watchGroup().first;
+      final totalSavings = group?.totalSavings ?? 0.0;
+      final totalOutstandingLoans = group?.totalOutstandingLoans ?? 0.0;
+      final availableFund = CalculationUtils.calculateAvailableFund(
+        totalSavings: totalSavings,
+        outstandingLoans: totalOutstandingLoans,
+      );
+
+      if (availableFund <= 0) {
+        if (!mounted) return;
+        _showError('No available group fund for a new loan.');
         return;
       }
 
@@ -439,70 +453,151 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final amountController = TextEditingController();
       final rateController = TextEditingController(text: '2.0');
       final purposeController = TextEditingController();
+      String? amountErrorMessage;
 
+      if (!mounted) return;
       showDialog(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Give Loan'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<Member>(
-                  items: members.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
-                  onChanged: (val) => selectedMember = val,
-                  decoration: const InputDecoration(labelText: 'Select Member'),
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            void validateAmount(String val) {
+              final parsed = double.tryParse(val);
+              if (parsed == null || parsed <= 0) {
+                amountErrorMessage = 'Please enter a valid loan amount';
+              } else if (parsed > availableFund) {
+                amountErrorMessage = 'Available group fund is ${CalculationUtils.formatCurrency(availableFund)}. Maximum loan amount allowed is ${CalculationUtils.formatCurrency(availableFund)}.';
+              } else {
+                amountErrorMessage = null;
+              }
+              setDialogState(() {});
+            }
+
+            return AlertDialog(
+              title: const Text('Give Loan'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.account_balance_wallet_rounded, color: AppColors.primary, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Available for Lending', style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                                Text(
+                                  CalculationUtils.formatCurrency(availableFund),
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<Member>(
+                      items: members.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
+                      onChanged: (val) => setDialogState(() => selectedMember = val),
+                      decoration: const InputDecoration(labelText: 'Select Member'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: amountController,
+                      decoration: InputDecoration(
+                        labelText: 'Loan Amount (₹)',
+                        errorText: amountErrorMessage,
+                        helperText: 'Max allowed: ${CalculationUtils.formatCurrency(availableFund)}',
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: validateAmount,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: rateController,
+                      decoration: const InputDecoration(labelText: 'Monthly Interest Rate (%)'),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: purposeController,
+                      decoration: const InputDecoration(labelText: 'Purpose (optional)'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextField(controller: amountController, decoration: const InputDecoration(labelText: 'Loan Amount (₹)'), keyboardType: TextInputType.number),
-                const SizedBox(height: 12),
-                TextField(controller: rateController, decoration: const InputDecoration(labelText: 'Monthly Interest Rate (%)'), keyboardType: TextInputType.number),
-                const SizedBox(height: 12),
-                TextField(controller: purposeController, decoration: const InputDecoration(labelText: 'Purpose (optional)')),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (selectedMember == null) {
+                      _showError('Please select a member');
+                      return;
+                    }
+                    final amount = double.tryParse(amountController.text);
+                    if (amount == null || amount <= 0) {
+                      setDialogState(() {
+                        amountErrorMessage = 'Please enter a valid loan amount';
+                      });
+                      return;
+                    }
+                    if (amount > availableFund) {
+                      setDialogState(() {
+                        amountErrorMessage = 'Available group fund is ${CalculationUtils.formatCurrency(availableFund)}. Maximum loan amount allowed is ${CalculationUtils.formatCurrency(availableFund)}.';
+                      });
+                      return;
+                    }
+
+                    try {
+                      final now = DateTime.now();
+                      final loan = Loan(
+                        id: 'L_${now.millisecondsSinceEpoch}',
+                        groupId: provider.groupId,
+                        memberId: selectedMember!.id,
+                        originalPrincipal: amount,
+                        pendingPrincipal: amount,
+                        interestRate: double.tryParse(rateController.text) ?? 2.0,
+                        loanDate: now,
+                        purpose: purposeController.text,
+                        status: LoanStatus.active,
+                        createdAt: now,
+                        updatedAt: now,
+                      );
+
+                      final tx = AppTransaction(
+                        id: 'T_${now.millisecondsSinceEpoch}',
+                        memberId: selectedMember!.id,
+                        memberName: selectedMember!.name,
+                        type: TransactionType.loanIssue,
+                        amount: amount,
+                        date: now,
+                        description: 'Loan Issued: ₹$amount to ${selectedMember!.name}',
+                        referenceId: loan.id,
+                      );
+
+                      await provider.issueLoan(loan, tx);
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                    } catch (e) {
+                      if (!dialogContext.mounted) return;
+                      _showError(e.toString().replaceAll('Exception: ', ''));
+                    }
+                  },
+                  child: const Text('Issue'),
+                ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                if (selectedMember != null && amountController.text.isNotEmpty) {
-                  final now = DateTime.now();
-                  final amount = double.parse(amountController.text);
-                  
-                  final loan = Loan(
-                    id: 'L_${now.millisecondsSinceEpoch}',
-                    groupId: provider.groupId,
-                    memberId: selectedMember!.id,
-                    originalPrincipal: amount,
-                    pendingPrincipal: amount,
-                    interestRate: double.parse(rateController.text),
-                    loanDate: now,
-                    purpose: purposeController.text,
-                    status: LoanStatus.active,
-                    createdAt: now,
-                    updatedAt: now,
-                  );
-
-                  final tx = AppTransaction(
-                    id: 'T_${now.millisecondsSinceEpoch}',
-                    memberId: selectedMember!.id,
-                    memberName: selectedMember!.name,
-                    type: TransactionType.loanIssue,
-                    amount: amount,
-                    date: now,
-                    description: 'Loan Issued: ₹$amount to ${selectedMember!.name}',
-                    referenceId: loan.id,
-                  );
-
-                  await provider.issueLoan(loan, tx);
-                  if (!dialogContext.mounted) return;
-                  Navigator.pop(dialogContext);
-                }
-              },
-              child: const Text('Issue'),
-            ),
-          ],
+            );
+          },
         ),
       );
     });
@@ -732,21 +827,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 28),
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 26),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11)),
-        ],
+        ),
       ),
     );
   }

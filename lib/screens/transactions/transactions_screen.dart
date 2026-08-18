@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/bachat_gat_provider.dart';
 import '../../models/transaction.dart';
 import '../../app/app_colors.dart';
@@ -25,18 +26,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isMarathi = l10n.localeName == 'mr';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transaction History'),
+        title: Text(l10n.transactionHistory),
         actions: [
           PopupMenuButton<TransactionType?>(
             icon: const Icon(Icons.filter_list_rounded),
             onSelected: (val) => setState(() => _filterType = val),
             itemBuilder: (context) => [
-              const PopupMenuItem(value: null, child: Text('All')),
+              PopupMenuItem(value: null, child: Text(l10n.all)),
               ...TransactionType.values.map((type) => PopupMenuItem(
                 value: type,
-                child: Text(type.name),
+                child: Text(CalculationUtils.localizeTransactionDescription(type.name, isMarathi: isMarathi)),
               )),
             ],
           ),
@@ -55,7 +59,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               .toList();
 
           if (transactions.isEmpty) {
-            return const Center(child: Text('No transactions yet'));
+            return Center(child: Text(l10n.noTransactionsYet));
           }
 
           return ListView.separated(
@@ -68,6 +72,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 tx.type == TransactionType.loanRepayment || 
                                 tx.type == TransactionType.interestPayment || 
                                 tx.type == TransactionType.otherIncome;
+
+              final localizedDescription = CalculationUtils.localizeTransactionDescription(
+                tx.description ?? tx.type.name,
+                isMarathi: isMarathi,
+              );
 
               return ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -98,7 +107,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 subtitle: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(tx.description ?? tx.type.name, style: const TextStyle(fontSize: 12)),
+                    Expanded(
+                      child: Text(
+                        localizedDescription,
+                        style: const TextStyle(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text(CalculationUtils.formatShortDate(tx.date), style: const TextStyle(fontSize: 10)),
                   ],
                 ),

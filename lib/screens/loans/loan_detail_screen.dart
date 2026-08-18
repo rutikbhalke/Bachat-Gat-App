@@ -7,6 +7,7 @@ import '../../models/monthly_contribution.dart';
 import '../../models/transaction.dart';
 import '../../app/app_colors.dart';
 import '../../core/utils/calculation_utils.dart';
+import '../../l10n/app_localizations.dart';
 
 class LoanDetailScreen extends StatefulWidget {
   final Loan loan;
@@ -32,16 +33,18 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<BachatGatProvider>(context);
+    final l10n = AppLocalizations.of(context)!;
+    final isMarathi = l10n.localeName == 'mr';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Loan Details'),
+        title: Text(l10n.loanDetails),
         actions: [
           if (_loan.status == LoanStatus.active)
             IconButton(
               onPressed: () => _showRepaymentDialog(provider),
               icon: const Icon(Icons.payment_rounded),
-              tooltip: 'Record Payment',
+              tooltip: l10n.recordPayment,
             ),
         ],
       ),
@@ -64,11 +67,11 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildOverviewCard(totalInterestPaid, totalPrincipalPaid),
+                _buildOverviewCard(totalInterestPaid, totalPrincipalPaid, l10n),
                 const SizedBox(height: 24),
                 
                 if (_loan.status == LoanStatus.active) ...[
-                  Text('CURRENT MONTH INTEREST (2%)', style: Theme.of(context).textTheme.labelLarge),
+                  Text(l10n.currentMonthInterest2Percent, style: Theme.of(context).textTheme.labelLarge),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -80,7 +83,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Monthly Interest due:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(l10n.monthlyInterestDue, style: const TextStyle(fontWeight: FontWeight.bold)),
                         Text(
                           CalculationUtils.formatCurrency(currentInterest),
                           style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.accent, fontSize: 18),
@@ -94,13 +97,13 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('REPAYMENT HISTORY', style: Theme.of(context).textTheme.labelLarge),
-                    Text('${repayments.length} Payments', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                    Text(l10n.repaymentHistory, style: Theme.of(context).textTheme.labelLarge),
+                    Text('${repayments.length} ${l10n.payments}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (repayments.isEmpty)
-                  const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No repayments recorded yet')))
+                  Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(l10n.noRepaymentsRecordedYet)))
                 else
                   ListView.separated(
                     shrinkWrap: true,
@@ -118,7 +121,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  '${CalculationUtils.getMonthName(r.month)} ${r.year} (${CalculationUtils.formatShortDate(r.paymentDate)})',
+                                  '${isMarathi ? CalculationUtils.getMonthNameMarathi(r.month) : CalculationUtils.getMonthName(r.month)} ${r.year} (${CalculationUtils.formatShortDate(r.paymentDate)})',
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
                                 Text(
@@ -130,18 +133,18 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                _miniBadge('Interest: ${CalculationUtils.formatCurrency(r.interestAmount)}', AppColors.interest),
+                                _miniBadge('${l10n.interest}: ${CalculationUtils.formatCurrency(r.interestAmount)}', AppColors.interest),
                                 const SizedBox(width: 8),
-                                _miniBadge('Principal: ${CalculationUtils.formatCurrency(r.principalRepaid)}', AppColors.primary),
+                                _miniBadge('${l10n.principal}: ${CalculationUtils.formatCurrency(r.principalRepaid)}', AppColors.primary),
                                 if (r.regularContribution > 0) ...[
                                   const SizedBox(width: 8),
-                                  _miniBadge('Hafta: ${CalculationUtils.formatCurrency(r.regularContribution)}', AppColors.success),
+                                  _miniBadge('${l10n.hafta}: ${CalculationUtils.formatCurrency(r.regularContribution)}', AppColors.success),
                                 ],
                               ],
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Closing Balance: ${CalculationUtils.formatCurrency(r.closingPrincipal)}',
+                              '${l10n.closingBalance}: ${CalculationUtils.formatCurrency(r.closingPrincipal)}',
                               style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                             ),
                           ],
@@ -157,7 +160,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     );
   }
 
-  Widget _buildOverviewCard(double interestPaid, double principalPaid) {
+  Widget _buildOverviewCard(double interestPaid, double principalPaid, AppLocalizations l10n) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -166,15 +169,15 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _miniStat('Original Loan', CalculationUtils.formatCurrency(_loan.originalPrincipal)),
-                _miniStat('Monthly Rate', '${_loan.interestRate}% / mo'),
+                _miniStat(l10n.originalLoan, CalculationUtils.formatCurrency(_loan.originalPrincipal)),
+                _miniStat(l10n.monthlyRate, l10n.localeName == 'mr' ? '२% / महिना' : '${_loan.interestRate}% / mo'),
               ],
             ),
             const Divider(height: 32),
             Row(
               children: [
-                Expanded(child: _miniStat('Interest Paid', CalculationUtils.formatCurrency(interestPaid))),
-                Expanded(child: _miniStat('Principal Paid', CalculationUtils.formatCurrency(principalPaid))),
+                Expanded(child: _miniStat(l10n.interestPaid, CalculationUtils.formatCurrency(interestPaid))),
+                Expanded(child: _miniStat(l10n.principalPaid, CalculationUtils.formatCurrency(principalPaid))),
               ],
             ),
             const SizedBox(height: 20),
@@ -187,7 +190,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Outstanding Principal', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  Text(l10n.outstandingPrincipal, style: const TextStyle(color: Colors.white, fontSize: 12)),
                   Text(
                     CalculationUtils.formatCurrency(_loan.pendingPrincipal),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
@@ -207,6 +210,8 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     final now = DateTime.now();
     int selectedMonth = now.month;
     int selectedYear = now.year;
+    final l10n = AppLocalizations.of(context)!;
+    final isMarathi = l10n.localeName == 'mr';
 
     showDialog(
       context: context,
@@ -221,7 +226,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
           final totalPayment = regularHafta + interestAmount + principalRepaid;
 
           return AlertDialog(
-            title: const Text('Record Loan Payment'),
+            title: Text(l10n.recordLoanPayment),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -232,9 +237,9 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                       Expanded(
                         child: DropdownButtonFormField<int>(
                           initialValue: selectedMonth,
-                          items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(CalculationUtils.getMonthName(i + 1)))),
+                          items: List.generate(12, (i) => DropdownMenuItem(value: i + 1, child: Text(isMarathi ? CalculationUtils.getMonthNameMarathi(i + 1) : CalculationUtils.getMonthName(i + 1)))),
                           onChanged: (val) => setDialogState(() => selectedMonth = val!),
-                          decoration: const InputDecoration(labelText: 'Month'),
+                          decoration: InputDecoration(labelText: l10n.month),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -243,7 +248,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                           initialValue: selectedYear,
                           items: [now.year - 1, now.year, now.year + 1].map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
                           onChanged: (val) => setDialogState(() => selectedYear = val!),
-                          decoration: const InputDecoration(labelText: 'Year'),
+                          decoration: InputDecoration(labelText: l10n.year),
                         ),
                       ),
                     ],
@@ -258,22 +263,22 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Pending: ₹${_loan.pendingPrincipal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text('Interest (2%): ₹${interestAmount.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.interest, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text('${l10n.pending}: ₹${_loan.pendingPrincipal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text('${l10n.interest} (2%): ₹${interestAmount.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.interest, fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: principalController,
-                    decoration: const InputDecoration(labelText: 'Principal Repayment Amount (₹)'),
+                    decoration: InputDecoration(labelText: l10n.principalRepaymentAmount),
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: haftaController,
-                    decoration: const InputDecoration(labelText: 'Regular Hafta (Optional) (₹)'),
+                    decoration: InputDecoration(labelText: l10n.regularHaftaOptional),
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
                   ),
@@ -287,7 +292,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Total Payment:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(l10n.totalPayment, style: const TextStyle(fontWeight: FontWeight.bold)),
                         Text(
                           CalculationUtils.formatCurrency(totalPayment),
                           style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 16),
@@ -299,12 +304,12 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
               ElevatedButton(
                 onPressed: () async {
                   if (totalPayment > 0) {
                     if (principalRepaid > _loan.pendingPrincipal) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Principal repayment cannot exceed pending principal')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.principalCannotExceedPending)));
                       return;
                     }
 
@@ -382,7 +387,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
                     Navigator.pop(dialogContext);
                   }
                 },
-                child: const Text('Record'),
+                child: Text(l10n.record),
               ),
             ],
           );

@@ -3,6 +3,7 @@ import '../services/firebase_service.dart';
 import '../models/group.dart';
 import '../models/member.dart';
 import '../models/transaction.dart';
+import '../core/utils/perf_logger.dart';
 
 class GroupRepository {
   final FirebaseService _firebaseService;
@@ -31,9 +32,11 @@ class GroupRepository {
   }
 
   Future<BachatGatGroup?> getGroup(String groupId) async {
-    final doc = await _firebaseService.groups.doc(groupId).get();
-    if (!doc.exists) return null;
-    return BachatGatGroup.fromJson(doc.data() as Map<String, dynamic>);
+    return PerfLogger.traceAsync('getGroup($groupId)', () async {
+      final doc = await _firebaseService.groups.doc(groupId).get();
+      if (!doc.exists) return null;
+      return BachatGatGroup.fromJson(doc.data() as Map<String, dynamic>);
+    });
   }
 
   Stream<BachatGatGroup?> watchGroup(String groupId) {
@@ -73,18 +76,22 @@ class GroupRepository {
   }
 
   Future<List<Member>> getMembers(String groupId, {bool activeOnly = true}) async {
-    Query query = _firebaseService.members(groupId);
-    if (activeOnly) {
-      query = query.where('status', isEqualTo: 'active');
-    }
-    final snapshot = await query.get();
-    return snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
+    return PerfLogger.traceAsync('getMembers($groupId, activeOnly=$activeOnly)', () async {
+      Query query = _firebaseService.members(groupId);
+      if (activeOnly) {
+        query = query.where('status', isEqualTo: 'active');
+      }
+      final snapshot = await query.get();
+      return snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
+    });
   }
 
   Future<Member?> getMember(String groupId, String memberId) async {
-    final doc = await _firebaseService.members(groupId).doc(memberId).get();
-    if (!doc.exists) return null;
-    return Member.fromJson(doc.data() as Map<String, dynamic>);
+    return PerfLogger.traceAsync('getMember($groupId, $memberId)', () async {
+      final doc = await _firebaseService.members(groupId).doc(memberId).get();
+      if (!doc.exists) return null;
+      return Member.fromJson(doc.data() as Map<String, dynamic>);
+    });
   }
 
   Future<void> addMember(Member member) async {

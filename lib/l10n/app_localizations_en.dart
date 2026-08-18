@@ -187,4 +187,196 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previewReceipt => 'Preview Receipt';
+
+  @override
+  String get groupId => 'Group ID';
+
+  @override
+  String get perMember => 'per member';
+
+  @override
+  String get monthlyTarget => 'Monthly Target';
+
+  @override
+  String get createdDate => 'Created Date';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get defaultGroupName => 'Shivshahi Bachat Gat';
+
+  @override
+  String get monthlyPayment => 'Monthly Payment';
+
+  @override
+  String get repayment => 'Repayment';
+
+  @override
+  String get loanIssued => 'Loan Issued';
+
+  @override
+  String get tenthOfEveryMonth => '10th of every month';
+
+  @override
+  String get activeGroupTargetProgress => 'Active Group Target Progress';
+
+  @override
+  String get noRecentActivity => 'No recent activity';
+
+  @override
+  String get transactionHistory => 'Transaction History';
+
+  @override
+  String get noTransactionsYet => 'No transactions yet';
+
+  @override
+  String get all => 'All';
+
+  @override
+  String get monthlyRegister => 'Monthly Register';
+
+  @override
+  String get pendingDues => 'Pending Dues';
+
+  @override
+  String get loansOverview => 'Loans Overview';
+
+  @override
+  String get pendingDuesSummary => 'Pending Dues Summary';
+
+  @override
+  String get membersPendingBalance => 'members have pending balance';
+
+  @override
+  String get share => 'Share';
+
+  @override
+  String get outstandingLoanPrincipal => 'Outstanding Loan Principal';
+
+  @override
+  String get pendingInterest2Percent => 'Pending Interest (2%)';
+
+  @override
+  String get pendingHafta => 'Pending Hafta';
+
+  @override
+  String get allCollectionsUpToDate =>
+      'All collections up to date! No pending dues.';
+
+  @override
+  String get totalInterest2Percent => 'Total Interest (2%)';
+
+  @override
+  String get outstandingPrincipal => 'Outstanding Principal';
+
+  @override
+  String get availableGroupBalance => 'Available Group Balance';
+
+  @override
+  String get monthlyRegisterBreakdown => 'Monthly Register Breakdown';
+
+  @override
+  String get noCollectionRecordsForMonth =>
+      'No collection records for this month';
+
+  @override
+  String get noLoansIssuedYet => 'No loans issued yet';
+
+  @override
+  String get originalLoan => 'Original Loan';
+
+  @override
+  String get principalPaid => 'Principal Paid';
+
+  @override
+  String get interestPaid2Percent => 'Interest Paid (2%)';
+
+  @override
+  String get remaining => 'Remaining';
+
+  @override
+  String get repayments => 'Repayments';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get refreshReport => 'Refresh Report';
+
+  @override
+  String get manageLoans => 'Manage Loans';
+
+  @override
+  String get activeLoansTab => 'Active Loans';
+
+  @override
+  String get closedLoansTab => 'Closed';
+
+  @override
+  String get outstanding => 'Outstanding';
+
+  @override
+  String get repaid => 'Repaid';
+
+  @override
+  String get perMonth => 'mo';
+
+  @override
+  String get noLoansFound => 'No loans found';
+
+  @override
+  String get loanDetails => 'Loan Details';
+
+  @override
+  String get recordPayment => 'Record Payment';
+
+  @override
+  String get currentMonthInterest2Percent => 'CURRENT MONTH INTEREST (2%)';
+
+  @override
+  String get monthlyInterestDue => 'Monthly Interest due:';
+
+  @override
+  String get repaymentHistory => 'REPAYMENT HISTORY';
+
+  @override
+  String get payments => 'Payments';
+
+  @override
+  String get noRepaymentsRecordedYet => 'No repayments recorded yet';
+
+  @override
+  String get interestPaid => 'Interest Paid';
+
+  @override
+  String get monthlyRate => 'Monthly Rate';
+
+  @override
+  String get closingBalance => 'Closing Balance';
+
+  @override
+  String get recordLoanPayment => 'Record Loan Payment';
+
+  @override
+  String get principalRepaymentAmount => 'Principal Repayment Amount (₹)';
+
+  @override
+  String get regularHaftaOptional => 'Regular Hafta (Optional) (₹)';
+
+  @override
+  String get totalPayment => 'Total Payment:';
+
+  @override
+  String get record => 'Record';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get year => 'Year';
+
+  @override
+  String get principalCannotExceedPending =>
+      'Principal repayment cannot exceed pending principal';
 }

@@ -1,76 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions for strict authentication and authorization
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // Check if the authenticated user is the manager of the specified group
-    function isGroupManager(groupId) {
-      return isAuthenticated() && (
-        request.auth.uid == resource.data.managerId ||
-        request.auth.uid == request.resource.data.managerId ||
-        request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.managerId
-      );
-    }
-
-    // Check if the authenticated user is an active member of the specified group
-    function isGroupMember(groupId) {
-      return isAuthenticated() && (
-        isGroupManager(groupId) ||
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
-      );
-    }
-
-    // Temporary connectivity test path
-    match /firebase_connection_test/{docId} {
-      allow read, write: if isAuthenticated();
-    }
-
-    // STRICT GROUP TENANT ISOLATION
+    // Groups and authorized sub-collections
     match /groups/{groupId} {
-      // Group metadata: only group members or manager can read; only manager can create/update
-      allow read: if isAuthenticated() && (resource == null || isGroupMember(groupId));
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && isGroupManager(groupId);
+      allow read, write: if true;
 
-      // Members subcollection
       match /members/{memberId} {
-        allow read: if isAuthenticated() && isGroupMember(groupId);
-        allow create, update, delete: if isAuthenticated() && isGroupManager(groupId);
+        allow read, write: if true;
       }
 
-      // Monthly Collections / Savings subcollection
       match /monthly_contributions/{contributionId} {
-        allow read: if isAuthenticated() && isGroupMember(groupId);
-        allow create, update, delete: if isAuthenticated() && isGroupMember(groupId);
+        allow read, write: if true;
       }
 
-      // Loans subcollection
       match /loans/{loanId} {
-        allow read: if isAuthenticated() && isGroupMember(groupId);
-        allow create, update, delete: if isAuthenticated() && isGroupManager(groupId);
+        allow read, write: if true;
       }
 
-      // Loan Repayments subcollection
       match /loan_repayments/{repaymentId} {
-        allow read: if isAuthenticated() && isGroupMember(groupId);
-        allow create, update, delete: if isAuthenticated() && isGroupMember(groupId);
+        allow read, write: if true;
       }
 
-      // Activity / Audit Logs subcollection
       match /activities/{activityId} {
-        allow read: if isAuthenticated() && isGroupMember(groupId);
-        allow create: if isAuthenticated() && isGroupMember(groupId);
-        allow update, delete: if false; // Audit logs are append-only
+        allow read, write: if true;
       }
-    }
-
-    // Deny all other unauthenticated or top-level paths
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }

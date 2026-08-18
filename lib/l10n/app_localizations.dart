@@ -457,6 +457,384 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview Receipt'**
   String get previewReceipt;
+
+  /// No description provided for @groupId.
+  ///
+  /// In en, this message translates to:
+  /// **'Group ID'**
+  String get groupId;
+
+  /// No description provided for @perMember.
+  ///
+  /// In en, this message translates to:
+  /// **'per member'**
+  String get perMember;
+
+  /// No description provided for @monthlyTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Target'**
+  String get monthlyTarget;
+
+  /// No description provided for @createdDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Created Date'**
+  String get createdDate;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @defaultGroupName.
+  ///
+  /// In en, this message translates to:
+  /// **'Shivshahi Bachat Gat'**
+  String get defaultGroupName;
+
+  /// No description provided for @monthlyPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Payment'**
+  String get monthlyPayment;
+
+  /// No description provided for @repayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Repayment'**
+  String get repayment;
+
+  /// No description provided for @loanIssued.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Issued'**
+  String get loanIssued;
+
+  /// No description provided for @tenthOfEveryMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'10th of every month'**
+  String get tenthOfEveryMonth;
+
+  /// No description provided for @activeGroupTargetProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Active Group Target Progress'**
+  String get activeGroupTargetProgress;
+
+  /// No description provided for @noRecentActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'No recent activity'**
+  String get noRecentActivity;
+
+  /// No description provided for @transactionHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Transaction History'**
+  String get transactionHistory;
+
+  /// No description provided for @noTransactionsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No transactions yet'**
+  String get noTransactionsYet;
+
+  /// No description provided for @all.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get all;
+
+  /// No description provided for @monthlyRegister.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Register'**
+  String get monthlyRegister;
+
+  /// No description provided for @pendingDues.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Dues'**
+  String get pendingDues;
+
+  /// No description provided for @loansOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Loans Overview'**
+  String get loansOverview;
+
+  /// No description provided for @pendingDuesSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Dues Summary'**
+  String get pendingDuesSummary;
+
+  /// No description provided for @membersPendingBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'members have pending balance'**
+  String get membersPendingBalance;
+
+  /// No description provided for @share.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get share;
+
+  /// No description provided for @outstandingLoanPrincipal.
+  ///
+  /// In en, this message translates to:
+  /// **'Outstanding Loan Principal'**
+  String get outstandingLoanPrincipal;
+
+  /// No description provided for @pendingInterest2Percent.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Interest (2%)'**
+  String get pendingInterest2Percent;
+
+  /// No description provided for @pendingHafta.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Hafta'**
+  String get pendingHafta;
+
+  /// No description provided for @allCollectionsUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'All collections up to date! No pending dues.'**
+  String get allCollectionsUpToDate;
+
+  /// No description provided for @totalInterest2Percent.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Interest (2%)'**
+  String get totalInterest2Percent;
+
+  /// No description provided for @outstandingPrincipal.
+  ///
+  /// In en, this message translates to:
+  /// **'Outstanding Principal'**
+  String get outstandingPrincipal;
+
+  /// No description provided for @availableGroupBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Available Group Balance'**
+  String get availableGroupBalance;
+
+  /// No description provided for @monthlyRegisterBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Register Breakdown'**
+  String get monthlyRegisterBreakdown;
+
+  /// No description provided for @noCollectionRecordsForMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection records for this month'**
+  String get noCollectionRecordsForMonth;
+
+  /// No description provided for @noLoansIssuedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No loans issued yet'**
+  String get noLoansIssuedYet;
+
+  /// No description provided for @originalLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Original Loan'**
+  String get originalLoan;
+
+  /// No description provided for @principalPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Principal Paid'**
+  String get principalPaid;
+
+  /// No description provided for @interestPaid2Percent.
+  ///
+  /// In en, this message translates to:
+  /// **'Interest Paid (2%)'**
+  String get interestPaid2Percent;
+
+  /// No description provided for @remaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining'**
+  String get remaining;
+
+  /// No description provided for @repayments.
+  ///
+  /// In en, this message translates to:
+  /// **'Repayments'**
+  String get repayments;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @refreshReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Report'**
+  String get refreshReport;
+
+  /// No description provided for @manageLoans.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Loans'**
+  String get manageLoans;
+
+  /// No description provided for @activeLoansTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Active Loans'**
+  String get activeLoansTab;
+
+  /// No description provided for @closedLoansTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Closed'**
+  String get closedLoansTab;
+
+  /// No description provided for @outstanding.
+  ///
+  /// In en, this message translates to:
+  /// **'Outstanding'**
+  String get outstanding;
+
+  /// No description provided for @repaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Repaid'**
+  String get repaid;
+
+  /// No description provided for @perMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'mo'**
+  String get perMonth;
+
+  /// No description provided for @noLoansFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No loans found'**
+  String get noLoansFound;
+
+  /// No description provided for @loanDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Details'**
+  String get loanDetails;
+
+  /// No description provided for @recordPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Record Payment'**
+  String get recordPayment;
+
+  /// No description provided for @currentMonthInterest2Percent.
+  ///
+  /// In en, this message translates to:
+  /// **'CURRENT MONTH INTEREST (2%)'**
+  String get currentMonthInterest2Percent;
+
+  /// No description provided for @monthlyInterestDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Interest due:'**
+  String get monthlyInterestDue;
+
+  /// No description provided for @repaymentHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'REPAYMENT HISTORY'**
+  String get repaymentHistory;
+
+  /// No description provided for @payments.
+  ///
+  /// In en, this message translates to:
+  /// **'Payments'**
+  String get payments;
+
+  /// No description provided for @noRepaymentsRecordedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No repayments recorded yet'**
+  String get noRepaymentsRecordedYet;
+
+  /// No description provided for @interestPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Interest Paid'**
+  String get interestPaid;
+
+  /// No description provided for @monthlyRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Rate'**
+  String get monthlyRate;
+
+  /// No description provided for @closingBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Closing Balance'**
+  String get closingBalance;
+
+  /// No description provided for @recordLoanPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Record Loan Payment'**
+  String get recordLoanPayment;
+
+  /// No description provided for @principalRepaymentAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Principal Repayment Amount (₹)'**
+  String get principalRepaymentAmount;
+
+  /// No description provided for @regularHaftaOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular Hafta (Optional) (₹)'**
+  String get regularHaftaOptional;
+
+  /// No description provided for @totalPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Payment:'**
+  String get totalPayment;
+
+  /// No description provided for @record.
+  ///
+  /// In en, this message translates to:
+  /// **'Record'**
+  String get record;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @year.
+  ///
+  /// In en, this message translates to:
+  /// **'Year'**
+  String get year;
+
+  /// No description provided for @principalCannotExceedPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Principal repayment cannot exceed pending principal'**
+  String get principalCannotExceedPending;
 }
 
 class _AppLocalizationsDelegate

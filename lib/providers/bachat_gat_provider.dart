@@ -23,50 +23,49 @@ class BachatGatProvider extends ChangeNotifier {
 
   void _initGroup() {
     _groupRepo.ensureGroupExists(groupId).catchError((e) {
-      debugPrint('Error ensuring group exists: $e');
+      debugPrint('[REPORT ERROR] Error ensuring group exists: $e');
     });
   }
 
-  // --- Cached Streams ---
-  Stream<BachatGatGroup?>? _groupStream;
-  Stream<List<AppTransaction>>? _recentActivitiesStream;
-  Stream<List<Member>>? _membersStream;
-  Stream<List<Loan>>? _loansStream;
+  /// Manually clears cached reports (e.g. after refresh button click or event)
+  void invalidateReports() {
+    _reportService.invalidateCache();
+    notifyListeners();
+  }
 
   // --- Reports & Statements ---
   Future<MemberMonthlyReport> getMemberReport(Member member, int month, int year) =>
       _reportService.getMemberMonthlyReport(groupId: groupId, member: member, month: month, year: year);
 
-  Future<GroupMonthlyReport> getGroupReport(String groupName, int month, int year) =>
-      _reportService.getGroupMonthlyReport(groupId: groupId, groupName: groupName, month: month, year: year);
+  Future<GroupMonthlyReport> getGroupReport(String groupName, int month, int year, {bool forceRefresh = false}) =>
+      _reportService.getGroupMonthlyReport(groupId: groupId, groupName: groupName, month: month, year: year, forceRefresh: forceRefresh);
 
-  Future<List<PendingMemberReport>> getPendingReport({int? month, int? year, String? memberId}) =>
-      _reportService.getPendingReport(groupId: groupId, month: month, year: year, memberId: memberId);
+  Future<List<PendingMemberReport>> getPendingReport({int? month, int? year, String? memberId, bool forceRefresh = false}) =>
+      _reportService.getPendingReport(groupId: groupId, month: month, year: year, memberId: memberId, forceRefresh: forceRefresh);
 
-  Future<List<LoanReportItem>> getLoanReport({LoanStatus? statusFilter}) =>
-      _reportService.getLoanReport(groupId: groupId, statusFilter: statusFilter);
+  Future<List<LoanReportItem>> getLoanReport({LoanStatus? statusFilter, bool forceRefresh = false}) =>
+      _reportService.getLoanReport(groupId: groupId, statusFilter: statusFilter, forceRefresh: forceRefresh);
 
-  Future<List<MemberLedgerEntry>> getMemberLedger(String memberId) =>
-      _reportService.getMemberLedger(groupId: groupId, memberId: memberId);
+  Future<List<MemberLedgerEntry>> getMemberLedger(String memberId, {bool forceRefresh = false}) =>
+      _reportService.getMemberLedger(groupId: groupId, memberId: memberId, forceRefresh: forceRefresh);
 
   // --- Group & Dashboard ---
   Stream<BachatGatGroup?> watchGroup() {
-    _groupStream ??= _groupRepo.watchGroup(groupId).asBroadcastStream();
-    return _groupStream!;
+    return _groupRepo.watchGroup(groupId);
   }
 
-  Future<void> updateGroupSettings({String? name, double? monthlyTarget, double? monthlyContributionAmount}) =>
-      _groupRepo.updateGroupSettings(groupId, name: name, monthlyTarget: monthlyTarget, monthlyContributionAmount: monthlyContributionAmount);
+  Future<void> updateGroupSettings({String? name, double? monthlyTarget, double? monthlyContributionAmount}) async {
+    await _groupRepo.updateGroupSettings(groupId, name: name, monthlyTarget: monthlyTarget, monthlyContributionAmount: monthlyContributionAmount);
+    _reportService.invalidateCache();
+  }
 
   Stream<List<AppTransaction>> watchRecentActivities({int limit = 20}) {
-    _recentActivitiesStream ??= _txRepo.watchRecentActivities(groupId, limit: limit).asBroadcastStream();
-    return _recentActivitiesStream!;
+    return _txRepo.watchRecentActivities(groupId, limit: limit);
   }
 
   // --- Members ---
   Stream<List<Member>> watchMembers({bool activeOnly = true}) {
-    _membersStream ??= _groupRepo.watchMembers(groupId, activeOnly: activeOnly).asBroadcastStream();
-    return _membersStream!;
+    return _groupRepo.watchMembers(groupId, activeOnly: activeOnly);
   }
 
   Future<List<Member>> getMembers({bool activeOnly = true}) =>
@@ -75,9 +74,20 @@ class BachatGatProvider extends ChangeNotifier {
   Future<Member?> getMember(String memberId) =>
       _groupRepo.getMember(groupId, memberId);
   
-  Future<void> addMember(Member member) => _groupRepo.addMember(member);
-  Future<void> updateMember(Member member) => _groupRepo.updateMember(member);
-  Future<void> deactivateMember(String memberId) => _groupRepo.deactivateMember(groupId, memberId);
+  Future<void> addMember(Member member) async {
+    await _groupRepo.addMember(member);
+    _reportService.invalidateCache();
+  }
+
+  Future<void> updateMember(Member member) async {
+    await _groupRepo.updateMember(member);
+    _reportService.invalidateCache();
+  }
+
+  Future<void> deactivateMember(String memberId) async {
+    await _groupRepo.deactivateMember(groupId, memberId);
+    _reportService.invalidateCache();
+  }
 
   // --- Transactions / Contributions ---
   Stream<List<MonthlyContribution>> watchContributions({String? memberId}) {
@@ -92,20 +102,19 @@ class BachatGatProvider extends ChangeNotifier {
     AppTransaction tx, {
     Loan? loan,
     LoanRepayment? repayment,
-  }) => _txRepo.recordContribution(
-    groupId,
-    contribution,
-    tx,
-    loan: loan,
-    repayment: repayment,
-  );
+  }) async {
+    await _txRepo.recordContribution(
+      groupId,
+      contribution,
+      tx,
+      loan: loan,
+      repayment: repayment,
+    );
+    _reportService.invalidateCache();
+  }
 
   // --- Loans ---
   Stream<List<Loan>> watchLoans({String? memberId}) {
-    if (memberId == null) {
-      _loansStream ??= _txRepo.watchLoans(groupId).asBroadcastStream();
-      return _loansStream!;
-    }
     return _txRepo.watchLoans(groupId, memberId: memberId);
   }
 
@@ -118,19 +127,24 @@ class BachatGatProvider extends ChangeNotifier {
   Future<List<LoanRepayment>> getRepayments({String? loanId, String? memberId, int? month, int? year}) =>
       _txRepo.getRepayments(groupId, loanId: loanId, memberId: memberId, month: month, year: year);
 
-  Future<void> issueLoan(Loan loan, AppTransaction tx) => 
-      _txRepo.issueLoan(groupId, loan, tx);
+  Future<void> issueLoan(Loan loan, AppTransaction tx) async {
+    await _txRepo.issueLoan(groupId, loan, tx);
+    _reportService.invalidateCache();
+  }
 
   Future<void> recordLoanRepayment({
     required Loan loan,
     required LoanRepayment repayment,
     required AppTransaction tx,
     MonthlyContribution? contribution,
-  }) => _txRepo.recordLoanRepayment(
-    groupId: groupId,
-    loan: loan,
-    repayment: repayment,
-    tx: tx,
-    contribution: contribution,
-  );
+  }) async {
+    await _txRepo.recordLoanRepayment(
+      groupId: groupId,
+      loan: loan,
+      repayment: repayment,
+      tx: tx,
+      contribution: contribution,
+    );
+    _reportService.invalidateCache();
+  }
 }
