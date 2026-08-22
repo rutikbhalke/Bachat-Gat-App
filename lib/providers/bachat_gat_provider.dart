@@ -33,6 +33,13 @@ class BachatGatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Resets all payment, loan, repayment, and activity history to 0 state, preserving 363 members.
+  Future<void> resetFinancialData() async {
+    await _groupRepo.resetAllFinancialData(groupId);
+    _reportService.invalidateCache();
+    notifyListeners();
+  }
+
   // --- Reports & Statements ---
   Future<MemberMonthlyReport> getMemberReport(Member member, int month, int year) =>
       _reportService.getMemberMonthlyReport(groupId: groupId, member: member, month: month, year: year);
@@ -54,8 +61,19 @@ class BachatGatProvider extends ChangeNotifier {
     return _groupRepo.watchGroup(groupId);
   }
 
-  Future<void> updateGroupSettings({String? name, double? monthlyTarget, double? monthlyContributionAmount}) async {
-    await _groupRepo.updateGroupSettings(groupId, name: name, monthlyTarget: monthlyTarget, monthlyContributionAmount: monthlyContributionAmount);
+  Future<void> updateGroupSettings({
+    String? name,
+    double? monthlyTarget,
+    double? monthlyContributionAmount,
+    int? monthlyHaftaDay,
+  }) async {
+    await _groupRepo.updateGroupSettings(
+      groupId,
+      name: name,
+      monthlyTarget: monthlyTarget,
+      monthlyContributionAmount: monthlyContributionAmount,
+      monthlyHaftaDay: monthlyHaftaDay,
+    );
     _reportService.invalidateCache();
   }
 
@@ -90,6 +108,10 @@ class BachatGatProvider extends ChangeNotifier {
   }
 
   // --- Transactions / Contributions ---
+  Future<void> ensureMonthlyObligations({int? targetMonth, int? targetYear}) async {
+    await _groupRepo.ensureMonthlyObligations(groupId, targetMonth: targetMonth, targetYear: targetYear);
+  }
+
   Stream<List<MonthlyContribution>> watchContributions({String? memberId}) {
     return _txRepo.watchContributions(groupId, memberId: memberId);
   }

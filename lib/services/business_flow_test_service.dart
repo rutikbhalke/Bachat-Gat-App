@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/member.dart';
 import '../models/loan.dart';
 import '../models/loan_repayment.dart';
-import '../models/monthly_contribution.dart';
 import '../models/transaction.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/transaction_repository.dart';
@@ -16,410 +16,574 @@ class BusinessFlowTestService {
     required TransactionRepository txRepo,
   }) async {
     final results = <String, bool>{};
-    const groupId = 'shivshahi_group_001';
+    final testGroupId = 'test_group_${DateTime.now().millisecondsSinceEpoch}';
 
     debugPrint('=====================================================');
-    debugPrint('STARTING REAL FIRESTORE BUSINESS DATA FLOW TEST');
+    debugPrint('STARTING COMPREHENSIVE BUSINESS RULES & FIRESTORE TEST');
     debugPrint('=====================================================');
 
     try {
-      // 0. Ensure Group Exists
-      await groupRepo.ensureGroupExists(groupId);
-      final groupDoc = await firebaseService.groups.doc(groupId).get();
+      // 0. Ensure Group Exists with initial funds (₹30,500 available fund)
+      await groupRepo.ensureGroupExists(testGroupId);
+      await firebaseService.groups.doc(testGroupId).set({
+        'id': testGroupId,
+        'name': 'Test Group Flow',
+        'managerId': 'manager_test',
+        'monthlyTarget': 5000.0,
+        'monthlyContributionAmount': 1000.0,
+        'totalFund': 30500.0,
+        'totalSavings': 30500.0,
+        'totalOutstandingLoans': 0.0,
+        'totalInterestCollected': 0.0,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+
+      final groupDoc = await firebaseService.groups.doc(testGroupId).get();
       if (!groupDoc.exists) {
-        throw Exception('Group $groupId document was not found or created.');
+        throw Exception('Group $testGroupId document was not found or created.');
       }
-      debugPrint('STEP 0: Group document verified: ${groupDoc.id}');
+      debugPrint('STEP 0: Initialized group with available balance = ₹30,500');
 
       final testTimestamp = DateTime.now().millisecondsSinceEpoch;
-      final testMemberId = 'M_test_$testTimestamp';
+      final memberAId = 'M_A_$testTimestamp';
+      final memberBId = 'M_B_$testTimestamp';
 
       // -----------------------------------------------------------------
-      // TEST 1: Create / Add Member
+      // TEST 1: Member + Multiple Shares Creation
+      // Member A: 3 shares @ 1000 = ₹3000
+      // Member B: 2 shares @ 1000 = ₹2000
+      // Total monthly = ₹5000
       // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 1: CREATE/ADD MEMBER ---');
-      final member1 = Member(
-        id: testMemberId,
-        groupId: groupId,
-        name: 'Firebase Test Member',
-        phone: '9999999999',
+      debugPrint('\n--- TEST 1: MEMBER + MULTIPLE SHARES CREATION ---');
+      final memberA = Member(
+        id: memberAId,
+        groupId: testGroupId,
+        name: 'Member A (3 Shares)',
+        phone: '9888888881',
         joinDate: DateTime(2026, 8, 1),
-        monthlyContribution: 1000.0,
+        shares: 3,
+        monthlyContributionPerShare: 1000.0,
         status: MemberStatus.active,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      await groupRepo.addMember(member1);
-
-      // Verify in Firestore
-      final mDoc = await firebaseService.members(groupId).doc(testMemberId).get();
-      if (mDoc.exists &&
-          mDoc.data() != null &&
-          (mDoc.data() as Map<String, dynamic>)['name'] == 'Firebase Test Member' &&
-          (mDoc.data() as Map<String, dynamic>)['monthlyContribution'] == 1000.0) {
-        results['member_create'] = true;
-        debugPrint('TEST 1 PASSED: Member created in Firestore: $testMemberId');
-      } else {
-        results['member_create'] = false;
-        debugPrint('TEST 1 FAILED: Member doc not matching in Firestore');
-      }
-
-      // -----------------------------------------------------------------
-      // TEST 2: Edit member's monthly hafta (1000 -> 1500)
-      // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 2: EDIT MEMBER MONTHLY HAFTA ---');
-      final updatedMember = member1.copyWith(
-        monthlyContribution: 1500.0,
-        updatedAt: DateTime.now(),
-      );
-
-      await groupRepo.updateMember(updatedMember);
-
-      final mDocUpdated = await firebaseService.members(groupId).doc(testMemberId).get();
-      if (mDocUpdated.exists &&
-          (mDocUpdated.data() as Map<String, dynamic>)['monthlyContribution'] == 1500.0) {
-        results['member_update'] = true;
-        debugPrint('TEST 2 PASSED: Member monthly hafta updated to 1500 in Firestore');
-      } else {
-        results['member_update'] = false;
-        debugPrint('TEST 2 FAILED: Member update not reflected');
-      }
-
-      // -----------------------------------------------------------------
-      // TEST 3: Record monthly contribution (August 2026)
-      // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 3: RECORD MONTHLY CONTRIBUTION ---');
-      final contribId1 = 'C_${testTimestamp}_aug';
-      final contrib1 = MonthlyContribution(
-        id: contribId1,
-        memberId: testMemberId,
-        groupId: groupId,
-        month: 8,
-        year: 2026,
-        regularHaftaAmount: 1500.0,
-        interestAmount: 0.0,
-        loanPrincipalPaid: 0.0,
-        totalPaid: 1500.0,
-        expectedAmount: 1500.0,
-        paidAmount: 1500.0,
-        status: ContributionStatus.paid,
-        paymentDate: DateTime.now(),
+      final memberB = Member(
+        id: memberBId,
+        groupId: testGroupId,
+        name: 'Member B (2 Shares)',
+        phone: '9888888882',
+        joinDate: DateTime(2026, 8, 1),
+        shares: 2,
+        monthlyContributionPerShare: 1000.0,
+        status: MemberStatus.active,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      final tx1 = AppTransaction(
-        id: 'T_${testTimestamp}_aug',
-        memberId: testMemberId,
-        memberName: 'Firebase Test Member',
-        type: TransactionType.monthlyInvestment,
-        amount: 1500.0,
-        date: DateTime.now(),
-        description: 'Monthly Contribution - August 2026',
-        referenceId: contribId1,
-      );
+      await groupRepo.addMember(memberA);
+      await groupRepo.addMember(memberB);
 
-      await txRepo.recordContribution(groupId, contrib1, tx1);
+      final mDocA = await firebaseService.members(testGroupId).doc(memberAId).get();
+      final mDocB = await firebaseService.members(testGroupId).doc(memberBId).get();
 
-      final cDoc = await firebaseService.monthlyContributions(groupId).doc(contribId1).get();
-      if (cDoc.exists &&
-          (cDoc.data() as Map<String, dynamic>)['month'] == 8 &&
-          (cDoc.data() as Map<String, dynamic>)['year'] == 2026 &&
-          (cDoc.data() as Map<String, dynamic>)['regularHaftaAmount'] == 1500.0) {
-        results['monthly_contribution_write'] = true;
-        debugPrint('TEST 3 PASSED: Monthly contribution recorded in monthly_contributions');
-      } else {
-        results['monthly_contribution_write'] = false;
-        debugPrint('TEST 3 FAILED: Monthly contribution doc missing or incorrect');
-      }
+      final dataA = mDocA.data() as Map<String, dynamic>;
+      final dataB = mDocB.data() as Map<String, dynamic>;
+
+      final isMultiShareValid = dataA['shares'] == 3 &&
+          dataA['monthlyContribution'] == 3000.0 &&
+          dataB['shares'] == 2 &&
+          dataB['monthlyContribution'] == 2000.0 &&
+          (dataA['monthlyContribution'] + dataB['monthlyContribution']) == 5000.0;
+
+      results['multi_shares_validation'] = isMultiShareValid;
+      debugPrint(isMultiShareValid
+          ? 'TEST 1 PASSED: Member A (3 shares = ₹3000) & Member B (2 shares = ₹2000), Total = ₹5000'
+          : 'TEST 1 FAILED: Multi-share calculations mismatch');
 
       // -----------------------------------------------------------------
-      // TEST 4: Issue 10,000 Loan @ 2%
+      // TEST 2: Loan Issuance Under Sufficient Balance
+      // Available = ₹30,500 -> Request Loan = ₹20,000 -> ALLOWED
+      // New Available = ₹10,500, Active Loans = ₹20,000
       // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 4: ISSUE 10,000 LOAN @ 2% ---');
-      final loanId = 'L_$testTimestamp';
-      final loan = Loan(
-        id: loanId,
-        groupId: groupId,
-        memberId: testMemberId,
-        originalPrincipal: 10000.0,
-        pendingPrincipal: 10000.0,
+      debugPrint('\n--- TEST 2: LOAN ISSUANCE UNDER SUFFICIENT BALANCE ---');
+      final loan1Id = 'L1_$testTimestamp';
+      final loan1 = Loan(
+        id: loan1Id,
+        groupId: testGroupId,
+        memberId: memberAId,
+        originalPrincipal: 20000.0,
+        pendingPrincipal: 20000.0,
         interestRate: 2.0,
         loanDate: DateTime.now(),
-        purpose: 'Business Investment',
+        purpose: 'Agriculture Support',
         status: LoanStatus.active,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      final txLoan = AppTransaction(
-        id: 'T_${testTimestamp}_loan',
-        memberId: testMemberId,
-        memberName: 'Firebase Test Member',
+      final txLoan1 = AppTransaction(
+        id: 'T_${testTimestamp}_loan1',
+        memberId: memberAId,
+        memberName: 'Member A',
         type: TransactionType.loanIssue,
-        amount: 10000.0,
+        amount: 20000.0,
         date: DateTime.now(),
-        description: 'Loan Issued: 10000',
-        referenceId: loanId,
+        description: 'Loan Issued: ₹20,000',
+        referenceId: loan1Id,
       );
 
-      await txRepo.issueLoan(groupId, loan, txLoan);
+      await txRepo.issueLoan(testGroupId, loan1, txLoan1);
 
-      final loanDoc = await firebaseService.loans(groupId).doc(loanId).get();
-      if (loanDoc.exists &&
-          (loanDoc.data() as Map<String, dynamic>)['originalPrincipal'] == 10000.0 &&
-          (loanDoc.data() as Map<String, dynamic>)['pendingPrincipal'] == 10000.0 &&
-          (loanDoc.data() as Map<String, dynamic>)['interestRate'] == 2.0) {
-        results['loan_create'] = true;
-        debugPrint('TEST 4 PASSED: Loan created: originalPrincipal=10000, pendingPrincipal=10000, interestRate=2');
-      } else {
-        results['loan_create'] = false;
-        debugPrint('TEST 4 FAILED: Loan doc missing or incorrect in Firestore');
+      final gDocAfterLoan1 = await firebaseService.groups.doc(testGroupId).get();
+      final gData1 = gDocAfterLoan1.data() as Map<String, dynamic>;
+      final availableAfterLoan1 = (gData1['totalFund'] as num).toDouble();
+      final outstandingAfterLoan1 = (gData1['totalOutstandingLoans'] as num).toDouble();
+
+      final isLoan1Success = availableAfterLoan1 == 10500.0 && outstandingAfterLoan1 == 20000.0;
+      results['loan_sufficient_balance'] = isLoan1Success;
+      debugPrint(isLoan1Success
+          ? 'TEST 2 PASSED: Loan ₹20,000 issued. Available Balance updated from ₹30,500 -> ₹10,500'
+          : 'TEST 2 FAILED: Available balance after loan is ₹$availableAfterLoan1');
+
+      // -----------------------------------------------------------------
+      // TEST 3: Loan Issuance Rejection Under Insufficient Balance
+      // Available = ₹10,500 -> Request Loan = ₹15,000 -> REJECTED
+      // Balance must remain ₹10,500 (STRICT NO NEGATIVE RULE)
+      // -----------------------------------------------------------------
+      debugPrint('\n--- TEST 3: LOAN ISSUANCE REJECTION UNDER INSUFFICIENT BALANCE ---');
+      final loan2Id = 'L2_$testTimestamp';
+      final loan2 = Loan(
+        id: loan2Id,
+        groupId: testGroupId,
+        memberId: memberBId,
+        originalPrincipal: 15000.0,
+        pendingPrincipal: 15000.0,
+        interestRate: 2.0,
+        loanDate: DateTime.now(),
+        purpose: 'Small Shop',
+        status: LoanStatus.active,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txLoan2 = AppTransaction(
+        id: 'T_${testTimestamp}_loan2',
+        memberId: memberBId,
+        memberName: 'Member B',
+        type: TransactionType.loanIssue,
+        amount: 15000.0,
+        date: DateTime.now(),
+        description: 'Loan Issued: ₹15,000',
+        referenceId: loan2Id,
+      );
+
+      bool loan2Rejected = false;
+      try {
+        await txRepo.issueLoan(testGroupId, loan2, txLoan2);
+      } catch (e) {
+        loan2Rejected = true;
+        debugPrint('Loan ₹15,000 correctly rejected with: $e');
       }
 
+      final gDocAfterLoan2 = await firebaseService.groups.doc(testGroupId).get();
+      final gData2 = gDocAfterLoan2.data() as Map<String, dynamic>;
+      final availableAfterLoan2 = (gData2['totalFund'] as num).toDouble();
+
+      final isLoan2Handled = loan2Rejected && availableAfterLoan2 == 10500.0;
+      results['loan_insufficient_balance_rejected'] = isLoan2Handled;
+      results['strict_no_negative_rule'] = availableAfterLoan2 >= 0;
+      debugPrint(isLoan2Handled
+          ? 'TEST 3 PASSED: Insufficient loan rejected. Available balance strictly remains ₹10,500 (NOT negative)'
+          : 'TEST 3 FAILED: Insufficient loan was allowed or balance corrupted');
+
       // -----------------------------------------------------------------
-      // TEST 5: Record Payment: ONLY regular hafta + interest (Principal = 0)
-      // Regular = 1000, Interest = 200 (2% of 10000), Principal = 0, Total = 1200
+      // TEST 4: Loan Partial Repayment
+      // Outstanding = ₹20,000 -> Principal Repay = ₹5,000 -> Outstanding = ₹15,000
       // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 5: PAYMENT: REGULAR (1000) + INTEREST (200) + PRINCIPAL (0) = 1200 ---');
-      final interest5 = CalculationUtils.calculateMonthlyInterest(
-        outstandingPrincipal: 10000.0,
+      debugPrint('\n--- TEST 4: LOAN PARTIAL REPAYMENT ---');
+      final repayment1Id = 'R1_$testTimestamp';
+      final interestAmount = CalculationUtils.calculateMonthlyInterest(
+        outstandingPrincipal: 20000.0,
         annualRate: 2.0,
-      ); // 200.0
-      
-      final repaymentId1 = 'R_${testTimestamp}_sep';
-      final contribId2 = 'C_${testTimestamp}_sep';
-      final now5 = DateTime.now();
+      ); // ₹400
 
       final repayment1 = LoanRepayment(
-        id: repaymentId1,
-        loanId: loanId,
-        groupId: groupId,
-        memberId: testMemberId,
+        id: repayment1Id,
+        loanId: loan1Id,
+        groupId: testGroupId,
+        memberId: memberAId,
+        month: 8,
+        year: 2026,
+        openingPrincipal: 20000.0,
+        interestRate: 2.0,
+        interestAmount: interestAmount,
+        regularContribution: 3000.0,
+        principalRepaid: 5000.0,
+        totalPaid: 8400.0, // 3000 hafta + 400 interest + 5000 principal
+        closingPrincipal: 15000.0,
+        paymentDate: DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txRepay1 = AppTransaction(
+        id: 'T_${testTimestamp}_repay1',
+        memberId: memberAId,
+        memberName: 'Member A',
+        type: TransactionType.loanRepayment,
+        amount: 8400.0,
+        date: DateTime.now(),
+        description: 'Repayment (Hafta: ₹3000, Interest: ₹400, Principal: ₹5000)',
+        referenceId: repayment1Id,
+      );
+
+      await txRepo.recordLoanRepayment(
+        groupId: testGroupId,
+        loan: loan1,
+        repayment: repayment1,
+        tx: txRepay1,
+      );
+
+      final lDocAfterRepay1 = await firebaseService.loans(testGroupId).doc(loan1Id).get();
+      final lData1 = lDocAfterRepay1.data() as Map<String, dynamic>;
+      final pendingLoan1 = (lData1['pendingPrincipal'] as num).toDouble();
+
+      final isRepay1Success = pendingLoan1 == 15000.0;
+      results['loan_repayment_valid'] = isRepay1Success;
+      debugPrint(isRepay1Success
+          ? 'TEST 4 PASSED: Outstanding loan reduced from ₹20,000 -> ₹15,000'
+          : 'TEST 4 FAILED: Pending loan is ₹$pendingLoan1');
+
+      // -----------------------------------------------------------------
+      // TEST 5: Over-Repayment Rejection
+      // Outstanding = ₹15,000 -> Repay = ₹20,000 -> REJECTED
+      // -----------------------------------------------------------------
+      debugPrint('\n--- TEST 5: OVER-REPAYMENT REJECTION ---');
+      final repayment2Id = 'R2_$testTimestamp';
+      final currentLoanDoc = await firebaseService.loans(testGroupId).doc(loan1Id).get();
+      final currentLoan = Loan.fromJson(currentLoanDoc.data() as Map<String, dynamic>);
+
+      final overRepayment = LoanRepayment(
+        id: repayment2Id,
+        loanId: loan1Id,
+        groupId: testGroupId,
+        memberId: memberAId,
         month: 9,
+        year: 2026,
+        openingPrincipal: 15000.0,
+        interestRate: 2.0,
+        interestAmount: 300.0,
+        regularContribution: 0.0,
+        principalRepaid: 20000.0, // Exceeds 15,000 pending!
+        totalPaid: 20300.0,
+        closingPrincipal: 0.0,
+        paymentDate: DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txOverRepay = AppTransaction(
+        id: 'T_${testTimestamp}_over',
+        memberId: memberAId,
+        memberName: 'Member A',
+        type: TransactionType.loanRepayment,
+        amount: 20300.0,
+        date: DateTime.now(),
+        description: 'Over-repayment attempt',
+        referenceId: repayment2Id,
+      );
+
+      bool overRepayRejected = false;
+      try {
+        await txRepo.recordLoanRepayment(
+          groupId: testGroupId,
+          loan: currentLoan,
+          repayment: overRepayment,
+          tx: txOverRepay,
+        );
+      } catch (e) {
+        overRepayRejected = true;
+        debugPrint('Over-repayment correctly rejected with: $e');
+      }
+
+      final lDocAfterOver = await firebaseService.loans(testGroupId).doc(loan1Id).get();
+      final lDataAfterOver = lDocAfterOver.data() as Map<String, dynamic>;
+      final pendingAfterOver = (lDataAfterOver['pendingPrincipal'] as num).toDouble();
+
+      final isOverRepayHandled = overRepayRejected && pendingAfterOver == 15000.0;
+      results['over_repayment_rejected'] = isOverRepayHandled;
+      debugPrint(isOverRepayHandled
+          ? 'TEST 5 PASSED: Over-repayment rejected. Pending principal strictly remains ₹15,000'
+          : 'TEST 5 FAILED: Over-repayment was allowed');
+
+      // -----------------------------------------------------------------
+      // TEST 6: Soft Deactivate Member & Check History Preservation
+      // -----------------------------------------------------------------
+      debugPrint('\n--- TEST 6: MEMBER DEACTIVATION & HISTORY PRESERVATION ---');
+      await groupRepo.deactivateMember(testGroupId, memberAId);
+      final mDeactivated = await firebaseService.members(testGroupId).doc(memberAId).get();
+      final isSoftDeactivated = mDeactivated.exists &&
+          (mDeactivated.data() as Map<String, dynamic>)['status'] == MemberStatus.inactive.name;
+
+      final historyLoans = await firebaseService.loans(testGroupId).where('memberId', isEqualTo: memberAId).get();
+      final historyRepayments = await firebaseService.loanRepayments(testGroupId).where('memberId', isEqualTo: memberAId).get();
+
+      final isHistoryPreserved = isSoftDeactivated && historyLoans.docs.isNotEmpty && historyRepayments.docs.isNotEmpty;
+      results['member_deactivate_and_history_preserved'] = isHistoryPreserved;
+      debugPrint(isHistoryPreserved
+          ? 'TEST 6 PASSED: Member soft-deactivated. All historical loan and repayment records preserved.'
+          : 'TEST 6 FAILED: Historical records missing after deactivation');
+
+      // -----------------------------------------------------------------
+      // TEST 7: Dashboard Calculation Scenario
+      // Initial: ₹30,500 available -> Loan ₹3,000 (+₹3000 loan, ₹3000 active, ₹27,500 available)
+      // -> Repay ₹1,000 (Outstanding ₹2,000, Active ₹2,000)
+      // -> Over-Repay ₹3,000 (REJECTED, Outstanding remains ₹2,000)
+      // -----------------------------------------------------------------
+      debugPrint('\n--- TEST 7: DASHBOARD LOAN SCENARIO (₹3,000 LOAN, ₹1,000 REPAY) ---');
+      final loanScenarioId = 'L_SCENARIO_$testTimestamp';
+      final loanScenario = Loan(
+        id: loanScenarioId,
+        groupId: testGroupId,
+        memberId: memberBId,
+        originalPrincipal: 3000.0,
+        pendingPrincipal: 3000.0,
+        interestRate: 2.0,
+        loanDate: DateTime.now(),
+        purpose: 'Small Business',
+        status: LoanStatus.active,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txScenario = AppTransaction(
+        id: 'T_${testTimestamp}_scenario',
+        memberId: memberBId,
+        memberName: 'Member B',
+        type: TransactionType.loanIssue,
+        amount: 3000.0,
+        date: DateTime.now(),
+        description: 'Loan Issued: ₹3,000',
+        referenceId: loanScenarioId,
+      );
+
+      await txRepo.issueLoan(testGroupId, loanScenario, txScenario);
+
+      final lDocScenario = await firebaseService.loans(testGroupId).doc(loanScenarioId).get();
+      final lDataScenario = lDocScenario.data() as Map<String, dynamic>;
+      final isPositivePrincipal = (lDataScenario['originalPrincipal'] as num) == 3000.0 &&
+          (lDataScenario['pendingPrincipal'] as num) == 3000.0;
+
+      // Partial Repayment ₹1,000
+      final repayScenarioId = 'R_SCENARIO_$testTimestamp';
+      final repayScenario = LoanRepayment(
+        id: repayScenarioId,
+        loanId: loanScenarioId,
+        groupId: testGroupId,
+        memberId: memberBId,
+        month: 10,
+        year: 2026,
+        openingPrincipal: 3000.0,
+        interestRate: 2.0,
+        interestAmount: 60.0,
+        regularContribution: 0.0,
+        principalRepaid: 1000.0,
+        totalPaid: 1060.0,
+        closingPrincipal: 2000.0,
+        paymentDate: DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txRepayScenario = AppTransaction(
+        id: 'T_${testTimestamp}_repayScenario',
+        memberId: memberBId,
+        memberName: 'Member B',
+        type: TransactionType.loanRepayment,
+        amount: 1060.0,
+        date: DateTime.now(),
+        description: 'Repayment (Principal: ₹1,000, Interest: ₹60)',
+        referenceId: repayScenarioId,
+      );
+
+      await txRepo.recordLoanRepayment(
+        groupId: testGroupId,
+        loan: loanScenario,
+        repayment: repayScenario,
+        tx: txRepayScenario,
+      );
+
+      final lDocScenario2 = await firebaseService.loans(testGroupId).doc(loanScenarioId).get();
+      final lDataScenario2 = lDocScenario2.data() as Map<String, dynamic>;
+      final pendingScenario = (lDataScenario2['pendingPrincipal'] as num).toDouble();
+
+      final isScenarioValid = isPositivePrincipal && pendingScenario == 2000.0;
+      results['dashboard_loan_scenario_3000_1000'] = isScenarioValid;
+      debugPrint(isScenarioValid
+          ? 'TEST 7 PASSED: ₹3,000 loan stored as positive, repaid ₹1,000 -> Outstanding = ₹2,000'
+          : 'TEST 7 FAILED: Pending principal is ₹$pendingScenario');
+
+      // -----------------------------------------------------------------
+      // TEST 8: Requirement 28 Lifecycle Test
+      // 1 share = ₹1,000/mo, Loan = ₹10,000 @ 2%
+      // Month 1: Interest = ₹200, Repay = ₹5,000 -> Total Due = ₹6,200
+      // Pay ₹6,200 -> Savings +₹1,000, Interest +₹200, Loan Principal -₹5,000 -> Outstanding = ₹5,000
+      // Month 2: Interest = ₹5,000 * 2% = ₹100 -> If ₹0 principal, Total Due = ₹1,100
+      // If unpaid -> Overdue / Pending = ₹1,100
+      // -----------------------------------------------------------------
+      debugPrint('\n--- TEST 8: REQUIREMENT 28 LIFECYCLE (1 SHARE, 10K LOAN, 5K REPAY, M2 100 INT) ---');
+      final memberCId = 'M_C_$testTimestamp';
+      final memberC = Member(
+        id: memberCId,
+        groupId: testGroupId,
+        name: 'Member C (Req 28)',
+        phone: '9888888883',
+        joinDate: DateTime(2026, 8, 1),
+        shares: 1,
+        monthlyContributionPerShare: 1000.0,
+        status: MemberStatus.active,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await groupRepo.addMember(memberC);
+
+      final loan10kId = 'L_10K_$testTimestamp';
+      final loan10k = Loan(
+        id: loan10kId,
+        groupId: testGroupId,
+        memberId: memberCId,
+        originalPrincipal: 10000.0,
+        pendingPrincipal: 10000.0,
+        interestRate: 2.0,
+        loanDate: DateTime(2026, 8, 1),
+        purpose: 'Agriculture',
+        status: LoanStatus.active,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final txLoan10k = AppTransaction(
+        id: 'T_10K_$testTimestamp',
+        memberId: memberCId,
+        memberName: 'Member C',
+        type: TransactionType.loanIssue,
+        amount: 10000.0,
+        date: DateTime(2026, 8, 1),
+        description: 'Loan Issued: ₹10,000',
+        referenceId: loan10kId,
+      );
+
+      await txRepo.issueLoan(testGroupId, loan10k, txLoan10k);
+
+      // Month 1 calculations
+      final m1Regular = memberC.monthlyContribution; // 1,000
+      final m1Interest = CalculationUtils.calculateMonthlyInterest(outstandingPrincipal: 10000.0, annualRate: 2.0); // 200
+      const m1PrincipalRepay = 5000.0;
+      final m1TotalDue = m1Regular + m1Interest + m1PrincipalRepay; // 6,200
+
+      // Record Month 1 full payment of ₹6,200
+      final repay10kId = 'R_10K_$testTimestamp';
+      final repay10k = LoanRepayment(
+        id: repay10kId,
+        loanId: loan10kId,
+        groupId: testGroupId,
+        memberId: memberCId,
+        month: 8,
         year: 2026,
         openingPrincipal: 10000.0,
         interestRate: 2.0,
-        interestAmount: interest5,
-        regularContribution: 1000.0,
-        principalRepaid: 0.0,
-        totalPaid: 1200.0,
-        closingPrincipal: 10000.0,
-        paymentDate: now5,
-        createdAt: now5,
-        updatedAt: now5,
+        interestAmount: m1Interest,
+        regularContribution: m1Regular,
+        principalRepaid: m1PrincipalRepay,
+        totalPaid: m1TotalDue,
+        closingPrincipal: 5000.0,
+        paymentDate: DateTime(2026, 8, 10),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
-      final contrib2 = MonthlyContribution(
-        id: contribId2,
-        memberId: testMemberId,
-        groupId: groupId,
-        month: 9,
-        year: 2026,
-        regularHaftaAmount: 1000.0,
-        interestAmount: 200.0,
-        loanPrincipalPaid: 0.0,
-        totalPaid: 1200.0,
-        expectedAmount: 1000.0,
-        paidAmount: 1200.0,
-        status: ContributionStatus.paid,
-        paymentDate: now5,
-        createdAt: now5,
-        updatedAt: now5,
-      );
-
-      final tx5 = AppTransaction(
-        id: 'T_${testTimestamp}_sep',
-        memberId: testMemberId,
-        memberName: 'Firebase Test Member',
+      final txRepay10k = AppTransaction(
+        id: 'T_REPAY_10K_$testTimestamp',
+        memberId: memberCId,
+        memberName: 'Member C',
         type: TransactionType.loanRepayment,
-        amount: 1200.0,
-        date: now5,
-        description: 'September 2026 Repayment (H: 1000, I: 200, P: 0)',
-        referenceId: repaymentId1,
+        amount: m1TotalDue,
+        date: DateTime(2026, 8, 10),
+        description: 'Month 1 Full Payment: Hafta ₹1,000 + Interest ₹200 + Principal ₹5,000 = ₹6,200',
+        referenceId: repay10kId,
       );
 
-      await txRepo.recordContribution(
-        groupId,
-        contrib2,
-        tx5,
-        loan: loan,
-        repayment: repayment1,
+      await txRepo.recordLoanRepayment(
+        groupId: testGroupId,
+        loan: loan10k,
+        repayment: repay10k,
+        tx: txRepay10k,
       );
 
-      final loanDoc5 = await firebaseService.loans(groupId).doc(loanId).get();
-      final rDoc1 = await firebaseService.loanRepayments(groupId).doc(repaymentId1).get();
+      // Verify closing outstanding is strictly ₹5,000
+      final lDocAfterM1 = await firebaseService.loans(testGroupId).doc(loan10kId).get();
+      final lDataAfterM1 = lDocAfterM1.data() as Map<String, dynamic>;
+      final closingM1 = (lDataAfterM1['pendingPrincipal'] as num).toDouble();
 
-      final pendingAfter5 = (loanDoc5.data() as Map<String, dynamic>)['pendingPrincipal'];
-      final originalAfter5 = (loanDoc5.data() as Map<String, dynamic>)['originalPrincipal'];
+      // Month 2 calculations on reducing outstanding principal ₹5,000
+      final m2Interest = CalculationUtils.calculateMonthlyInterest(outstandingPrincipal: closingM1, annualRate: 2.0); // 100
+      const m2PrincipalRepay = 0.0;
+      final m2TotalDue = memberC.monthlyContribution + m2Interest + m2PrincipalRepay; // 1,100
 
-      if (pendingAfter5 == 10000.0 &&
-          originalAfter5 == 10000.0 &&
-          rDoc1.exists &&
-          (rDoc1.data() as Map<String, dynamic>)['interestAmount'] == 200.0 &&
-          (rDoc1.data() as Map<String, dynamic>)['principalRepaid'] == 0.0) {
-        results['interest_calculation'] = true;
-        results['pending_loan_calculation_test5'] = true;
-        debugPrint('TEST 5 PASSED: pendingPrincipal remains 10,000, interest stored separately (200)');
-      } else {
-        results['interest_calculation'] = false;
-        results['pending_loan_calculation_test5'] = false;
-        debugPrint('TEST 5 FAILED: loan pendingPrincipal changed or interest not stored properly');
-      }
+      final isReq28Valid = m1TotalDue == 6200.0 &&
+          closingM1 == 5000.0 &&
+          m2Interest == 100.0 &&
+          m2TotalDue == 1100.0;
+
+      results['requirement_28_lifecycle'] = isReq28Valid;
+      debugPrint(isReq28Valid
+          ? 'TEST 8 PASSED: Month 1 Due = ₹6,200 -> Closing = ₹5,000 -> Month 2 Interest = ₹100 -> Month 2 Due = ₹1,100'
+          : 'TEST 8 FAILED: M1=$m1TotalDue, Closing=$closingM1, M2Int=$m2Interest, M2Due=$m2TotalDue');
 
       // -----------------------------------------------------------------
-      // TEST 6: Record Repayment: Regular=1000, Interest=200, Principal=5000, Total=6200
+      // TEST 9: Requirement 29 Multiple Shares + Loan Due Test
+      // Member: 3 shares = ₹3,000/mo, Loan = ₹10,000, Interest = ₹200
+      // With ₹5,000 principal: Due = ₹3,000 + ₹200 + ₹5,000 = ₹8,200
+      // If principal skipped: Due = ₹3,000 + ₹200 = ₹3,200
       // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 6: REPAYMENT: REGULAR (1000) + INTEREST (200) + PRINCIPAL (5000) = 6200 ---');
-      final repaymentId2 = 'R_${testTimestamp}_oct';
-      final contribId3 = 'C_${testTimestamp}_oct';
-      final now6 = DateTime.now();
-
-      final currentLoanDoc = await firebaseService.loans(groupId).doc(loanId).get();
-      final currentLoan = Loan.fromJson(currentLoanDoc.data() as Map<String, dynamic>);
-
-      final repayment2 = LoanRepayment(
-        id: repaymentId2,
-        loanId: loanId,
-        groupId: groupId,
-        memberId: testMemberId,
-        month: 10,
-        year: 2026,
-        openingPrincipal: currentLoan.pendingPrincipal,
-        interestRate: 2.0,
-        interestAmount: 200.0,
-        regularContribution: 1000.0,
-        principalRepaid: 5000.0,
-        totalPaid: 6200.0,
-        closingPrincipal: currentLoan.pendingPrincipal - 5000.0, // 5000.0
-        paymentDate: now6,
-        createdAt: now6,
-        updatedAt: now6,
+      debugPrint('\n--- TEST 9: REQUIREMENT 29 (3 SHARES + 10K LOAN -> 8,200 / 3,200 DUE) ---');
+      final memberDId = 'M_D_$testTimestamp';
+      final memberD = Member(
+        id: memberDId,
+        groupId: testGroupId,
+        name: 'Member D (3 Shares Req 29)',
+        phone: '9888888884',
+        joinDate: DateTime(2026, 8, 1),
+        shares: 3,
+        monthlyContributionPerShare: 1000.0,
+        status: MemberStatus.active,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
+      await groupRepo.addMember(memberD);
 
-      final contrib3 = MonthlyContribution(
-        id: contribId3,
-        memberId: testMemberId,
-        groupId: groupId,
-        month: 10,
-        year: 2026,
-        regularHaftaAmount: 1000.0,
-        interestAmount: 200.0,
-        loanPrincipalPaid: 5000.0,
-        totalPaid: 6200.0,
-        expectedAmount: 1000.0,
-        paidAmount: 6200.0,
-        status: ContributionStatus.paid,
-        paymentDate: now6,
-        createdAt: now6,
-        updatedAt: now6,
-      );
+      const req29Outstanding = 10000.0;
+      final req29Regular = memberD.monthlyContribution; // 3,000
+      final req29Interest = CalculationUtils.calculateMonthlyInterest(outstandingPrincipal: req29Outstanding, annualRate: 2.0); // 200
+      const req29PrincipalRepay = 5000.0;
 
-      final tx6 = AppTransaction(
-        id: 'T_${testTimestamp}_oct',
-        memberId: testMemberId,
-        memberName: 'Firebase Test Member',
-        type: TransactionType.loanRepayment,
-        amount: 6200.0,
-        date: now6,
-        description: 'October 2026 Repayment (H: 1000, I: 200, P: 5000)',
-        referenceId: repaymentId2,
-      );
+      final req29DueWithPrincipal = req29Regular + req29Interest + req29PrincipalRepay; // 8,200
+      final req29DueSkippedPrincipal = req29Regular + req29Interest; // 3,200
 
-      await txRepo.recordContribution(
-        groupId,
-        contrib3,
-        tx6,
-        loan: currentLoan,
-        repayment: repayment2,
-      );
+      final isReq29Valid = req29Regular == 3000.0 &&
+          req29Interest == 200.0 &&
+          req29DueWithPrincipal == 8200.0 &&
+          req29DueSkippedPrincipal == 3200.0;
 
-      final loanDoc6 = await firebaseService.loans(groupId).doc(loanId).get();
-      final rDoc2 = await firebaseService.loanRepayments(groupId).doc(repaymentId2).get();
-
-      final pendingAfter6 = (loanDoc6.data() as Map<String, dynamic>)['pendingPrincipal'];
-      final originalAfter6 = (loanDoc6.data() as Map<String, dynamic>)['originalPrincipal'];
-
-      if (pendingAfter6 == 5000.0 &&
-          originalAfter6 == 10000.0 &&
-          rDoc2.exists &&
-          (rDoc2.data() as Map<String, dynamic>)['principalRepaid'] == 5000.0) {
-        results['loan_repayment_write'] = true;
-        results['pending_loan_calculation'] = true;
-        debugPrint('TEST 6 PASSED: originalPrincipal=10000, pendingPrincipal=5000, repayment recorded');
-      } else {
-        results['loan_repayment_write'] = false;
-        results['pending_loan_calculation'] = false;
-        debugPrint('TEST 6 FAILED: Loan calculation or repayment record incorrect');
-      }
-
-      // -----------------------------------------------------------------
-      // TEST 7: Verify previous records were NOT overwritten
-      // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 7: VERIFY NON-OVERWRITING REPAYMENT / CONTRIBUTION HISTORY ---');
-      final allContribs = await firebaseService.monthlyContributions(groupId)
-          .where('memberId', isEqualTo: testMemberId)
-          .get();
-
-      final allRepayments = await firebaseService.loanRepayments(groupId)
-          .where('loanId', isEqualTo: loanId)
-          .get();
-
-      if (allContribs.docs.length >= 3 && allRepayments.docs.length >= 2) {
-        results['repayment_history'] = true;
-        debugPrint('TEST 7 PASSED: Contributions count=${allContribs.docs.length}, Repayments count=${allRepayments.docs.length}. No overwrites!');
-      } else {
-        results['repayment_history'] = false;
-        debugPrint('TEST 7 FAILED: Missing previous records in history');
-      }
-
-      // -----------------------------------------------------------------
-      // TEST 8: Verify all 5 Firestore sub-collections + groups doc
-      // -----------------------------------------------------------------
-      debugPrint('\n--- TEST 8: VERIFY ALL FIRESTORE COLLECTIONS EXIST AND VALID ---');
-      final membersSnap = await firebaseService.members(groupId).get();
-      final contribsSnap = await firebaseService.monthlyContributions(groupId).get();
-      final loansSnap = await firebaseService.loans(groupId).get();
-      final repaymentsSnap = await firebaseService.loanRepayments(groupId).get();
-      final activitiesSnap = await firebaseService.activities(groupId).get();
-
-      debugPrint('   📁 groups: 1 ($groupId)');
-      debugPrint('   📁 members: ${membersSnap.docs.length} docs');
-      debugPrint('   📁 monthly_contributions: ${contribsSnap.docs.length} docs');
-      debugPrint('   📁 loans: ${loansSnap.docs.length} docs');
-      debugPrint('   📁 loan_repayments: ${repaymentsSnap.docs.length} docs');
-      debugPrint('   📁 activities: ${activitiesSnap.docs.length} docs');
-
-      if (membersSnap.docs.isNotEmpty &&
-          contribsSnap.docs.isNotEmpty &&
-          loansSnap.docs.isNotEmpty &&
-          repaymentsSnap.docs.isNotEmpty &&
-          activitiesSnap.docs.isNotEmpty) {
-        results['collections_verified'] = true;
-        debugPrint('TEST 8 PASSED: All 5 Firestore sub-collections exist and contain live documents');
-      } else {
-        results['collections_verified'] = false;
-        debugPrint('TEST 8 FAILED: Some collections are empty');
-      }
-
-      // -----------------------------------------------------------------
-      // Member Deactivate Test
-      // -----------------------------------------------------------------
-      debugPrint('\n--- MEMBER DEACTIVATE TEST ---');
-      await groupRepo.deactivateMember(groupId, testMemberId);
-      final mDeactivated = await firebaseService.members(groupId).doc(testMemberId).get();
-      if (mDeactivated.exists &&
-          (mDeactivated.data() as Map<String, dynamic>)['status'] == MemberStatus.inactive.name) {
-        results['member_deactivate'] = true;
-        debugPrint('MEMBER DEACTIVATE PASSED: Member status is now inactive in Firestore');
-      } else {
-        results['member_deactivate'] = false;
-        debugPrint('MEMBER DEACTIVATE FAILED');
-      }
+      results['requirement_29_multi_share_due'] = isReq29Valid;
+      debugPrint(isReq29Valid
+          ? 'TEST 9 PASSED: 3 Shares = ₹3,000 -> Total with ₹5,000 principal = ₹8,200, Skipped = ₹3,200'
+          : 'TEST 9 FAILED: WithPrincipal=$req29DueWithPrincipal, Skipped=$req29DueSkippedPrincipal');
 
       debugPrint('\n=====================================================');
-      debugPrint('ALL REAL FIRESTORE BUSINESS FLOW TESTS COMPLETED');
+      debugPrint('ALL BUSINESS FLOW & FIRESTORE TESTS COMPLETED');
       debugPrint('=====================================================\n');
 
     } catch (e, stack) {

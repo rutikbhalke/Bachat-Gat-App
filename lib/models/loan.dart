@@ -17,26 +17,28 @@ class Loan {
     required this.id,
     required this.groupId,
     required this.memberId,
-    required this.originalPrincipal,
-    required this.pendingPrincipal,
+    required double originalPrincipal,
+    required double pendingPrincipal,
     required this.interestRate,
     required this.loanDate,
     this.purpose,
     this.status = LoanStatus.active,
     required this.createdAt,
     required this.updatedAt,
-  });
+  })  : originalPrincipal = originalPrincipal >= 0 ? originalPrincipal : -originalPrincipal,
+        pendingPrincipal = pendingPrincipal >= 0 ? pendingPrincipal : 0.0;
 
   String get loanId => id;
   DateTime get issueDate => loanDate;
+  bool get isFullyRepaid => pendingPrincipal <= 0 || status == LoanStatus.closed;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'loanId': id,
         'groupId': groupId,
         'memberId': memberId,
-        'originalPrincipal': originalPrincipal,
-        'pendingPrincipal': pendingPrincipal,
+        'originalPrincipal': originalPrincipal >= 0 ? originalPrincipal : -originalPrincipal,
+        'pendingPrincipal': pendingPrincipal >= 0 ? pendingPrincipal : 0.0,
         'interestRate': interestRate,
         'loanDate': loanDate.toIso8601String(),
         'issueDate': loanDate.toIso8601String(),
@@ -46,19 +48,28 @@ class Loan {
         'updatedAt': updatedAt.toIso8601String(),
       };
 
-  factory Loan.fromJson(Map<String, dynamic> json) => Loan(
-        id: json['loanId'] ?? json['id'],
-        groupId: json['groupId'] ?? '',
-        memberId: json['memberId'],
-        originalPrincipal: (json['originalPrincipal'] as num).toDouble(),
-        pendingPrincipal: (json['pendingPrincipal'] as num).toDouble(),
-        interestRate: (json['interestRate'] as num).toDouble(),
-        loanDate: DateTime.parse(json['issueDate'] ?? json['loanDate']),
-        purpose: json['purpose'],
-        status: LoanStatus.values.byName(json['status'] ?? 'active'),
-        createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-        updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
-      );
+  factory Loan.fromJson(Map<String, dynamic> json) {
+    final rawOriginal = (json['originalPrincipal'] as num?)?.toDouble() ?? 0.0;
+    final rawPending = (json['pendingPrincipal'] as num?)?.toDouble() ?? 0.0;
+
+    // Sanitize any negative legacy stored values
+    final positiveOriginal = rawOriginal >= 0 ? rawOriginal : -rawOriginal;
+    final positivePending = rawPending >= 0 ? rawPending : (rawPending == rawOriginal ? positiveOriginal : 0.0);
+
+    return Loan(
+      id: json['loanId'] ?? json['id'] ?? '',
+      groupId: json['groupId'] ?? '',
+      memberId: json['memberId'] ?? '',
+      originalPrincipal: positiveOriginal,
+      pendingPrincipal: positivePending,
+      interestRate: (json['interestRate'] as num?)?.toDouble() ?? 2.0,
+      loanDate: DateTime.parse(json['issueDate'] ?? json['loanDate'] ?? DateTime.now().toIso8601String()),
+      purpose: json['purpose'],
+      status: LoanStatus.values.byName(json['status'] ?? 'active'),
+      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+    );
+  }
 
   Loan copyWith({
     double? pendingPrincipal,

@@ -51,7 +51,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Member Profile'),
+        title: Text(l10n.memberProfile),
         actions: [
           IconButton(
             onPressed: () => _showReportDialog(provider, l10n),
@@ -59,9 +59,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
             tooltip: l10n.generateReceipt,
           ),
           IconButton(
-            onPressed: () => _shareMemberLedger(provider, l10n),
+            onPressed: () => _shareMemberProfile(l10n),
             icon: const Icon(Icons.share_rounded),
-            tooltip: 'Share Ledger',
+            tooltip: l10n.shareOnWhatsApp,
           ),
           PopupMenuButton<String>(
             onSelected: (val) {
@@ -69,8 +69,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
               if (val == 'deactivate') _deactivateMember(provider);
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 18), SizedBox(width: 8), Text('Edit Member')])),
-              const PopupMenuItem(value: 'deactivate', child: Row(children: [Icon(Icons.person_remove_outlined, size: 18, color: AppColors.error), SizedBox(width: 8), Text('Deactivate', style: TextStyle(color: AppColors.error))])),
+              PopupMenuItem(value: 'edit', child: Row(children: [const Icon(Icons.edit_outlined, size: 18), const SizedBox(width: 8), Text(l10n.editMember)])),
+              PopupMenuItem(value: 'deactivate', child: Row(children: [const Icon(Icons.person_remove_outlined, size: 18, color: AppColors.error), const SizedBox(width: 8), Text(l10n.delete, style: const TextStyle(color: AppColors.error))])),
             ],
           ),
         ],
@@ -78,10 +78,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
       body: StreamBuilder<List<MonthlyContribution>>(
         stream: _contributionsStream,
         builder: (context, contributionSnapshot) {
-          final contributions = contributionSnapshot.data ?? [];
-          contributions.sort((a, b) => b.year != a.year ? b.year.compareTo(a.year) : b.month.compareTo(a.month));
+          final contributions = List<MonthlyContribution>.from(contributionSnapshot.data ?? []);
+          contributions.sort((a, b) => (b.year * 12 + b.month).compareTo(a.year * 12 + a.month));
           
-          final totalInvested = contributions.fold<double>(0.0, (sum, i) => sum + i.regularHaftaAmount);
+          final totalInvested = contributions
+              .fold<double>(0.0, (sum, i) => sum + i.actualRegularPaid);
 
           return StreamBuilder<List<Loan>>(
             stream: _loansStream,
@@ -125,7 +126,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                                   Text(_member.phone, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Joined: ${CalculationUtils.formatShortDate(_member.joinDate)} • Hafta: ₹${_member.monthlyContribution.toStringAsFixed(0)}',
+                                    '${l10n.joined}: ${CalculationUtils.formatShortDate(_member.joinDate)} • ${l10n.shares}: ${_member.shares} • ${l10n.hafta}: ₹${_member.monthlyContribution.toStringAsFixed(0)}',
                                     style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
                                   ),
                                 ],
@@ -139,7 +140,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                           children: [
                             Expanded(
                               child: _SummaryTile(
-                                label: 'Total Savings',
+                                label: l10n.totalSavings,
                                 value: CalculationUtils.formatCurrency(totalInvested),
                                 color: AppColors.success,
                               ),
@@ -147,7 +148,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                             const SizedBox(width: 8),
                             Expanded(
                               child: _SummaryTile(
-                                label: 'Active Loans',
+                                label: l10n.activeLoans,
                                 value: CalculationUtils.formatCurrency(outstandingLoan),
                                 color: outstandingLoan > 0 ? AppColors.error : AppColors.textSecondary,
                               ),
@@ -155,7 +156,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                             const SizedBox(width: 8),
                             Expanded(
                               child: _SummaryTile(
-                                label: '2% Mo. Interest',
+                                label: l10n.moInterestLabel,
                                 value: CalculationUtils.formatCurrency(currentMonthInterest),
                                 color: AppColors.interest,
                               ),
@@ -175,10 +176,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                       unselectedLabelColor: AppColors.textMuted,
                       indicatorColor: AppColors.primary,
                       indicatorSize: TabBarIndicatorSize.tab,
-                      tabs: const [
-                        Tab(text: 'Collections'),
-                        Tab(text: 'Loans'),
-                        Tab(text: 'Ledger'),
+                      tabs: [
+                        Tab(text: l10n.collections),
+                        Tab(text: l10n.loans),
+                        Tab(text: l10n.ledger),
                       ],
                     ),
                   ),
@@ -207,8 +208,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
   }
 
   Widget _buildCollectionsTab(List<MonthlyContribution> contributions) {
+    final l10n = AppLocalizations.of(context)!;
     if (contributions.isEmpty) {
-      return const Center(child: Text('No collection history found', style: TextStyle(color: AppColors.textMuted)));
+      return Center(child: Text(l10n.noCollectionHistoryFound, style: const TextStyle(color: AppColors.textMuted)));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -217,6 +219,40 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
       itemBuilder: (context, index) {
         final item = contributions[index];
         final isPaid = item.status == ContributionStatus.paid;
+        final isPartial = item.status == ContributionStatus.partial;
+
+        String statusLabel = item.status.name.toUpperCase();
+        Color statusColor = isPaid ? AppColors.success : (isPartial ? AppColors.warning : AppColors.warning);
+
+        if (item.status == ContributionStatus.pending) {
+          final isOverdue = CalculationUtils.isMonthOverdue(
+            month: item.month,
+            year: item.year,
+          );
+          if (isOverdue) {
+            statusLabel = l10n.overdue;
+            statusColor = AppColors.error;
+          } else {
+            statusLabel = l10n.due;
+            statusColor = AppColors.warning;
+          }
+        } else if (isPaid) {
+          statusLabel = l10n.paidStatus.toUpperCase();
+          statusColor = AppColors.success;
+        } else if (isPartial) {
+          statusLabel = l10n.partialStatus.toUpperCase();
+          statusColor = AppColors.warning;
+        }
+
+        final memberHaftaDue = _member.monthlyContribution > 0 ? _member.monthlyContribution : 1000.0;
+        final regularHafta = item.regularHaftaAmount > 0 && item.regularHaftaAmount <= memberHaftaDue
+            ? item.regularHaftaAmount
+            : memberHaftaDue;
+
+        final totalDisplayAmount = isPaid
+            ? (item.paidAmount > 0 ? item.paidAmount : (regularHafta + item.interestAmount + item.loanPrincipalPaid))
+            : (regularHafta + item.interestAmount + item.loanPrincipalPaid);
+
         return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -231,21 +267,21 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${CalculationUtils.getMonthName(item.month)} ${item.year}',
+                    '${CalculationUtils.getMonthName(item.month, locale: l10n.localeName)} ${item.year}',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: (isPaid ? AppColors.success : AppColors.warning).withValues(alpha: 0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      item.status.name.toUpperCase(),
+                      statusLabel,
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: isPaid ? AppColors.success : AppColors.warning,
+                        color: statusColor,
                       ),
                     ),
                   ),
@@ -255,15 +291,24 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Hafta: ₹${item.regularHaftaAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  if (item.interestAmount > 0)
-                    Text('Interest: ₹${item.interestAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.interest)),
-                  if (item.loanPrincipalPaid > 0)
-                    Text('Principal: ₹${item.loanPrincipalPaid.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.primary)),
-                  Text(
-                    'Total: ${CalculationUtils.formatCurrency(item.paidAmount)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                  ),
+                  if (isPartial) ...[
+                    Text('${l10n.due}: ₹${(regularHafta + item.interestAmount + item.loanPrincipalPaid).toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text('${l10n.collected}: ₹${item.paidAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.success)),
+                    Text(
+                      '${l10n.remaining}: ₹${((regularHafta + item.interestAmount + item.loanPrincipalPaid) - item.paidAmount).clamp(0.0, double.infinity).toStringAsFixed(0)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.error),
+                    ),
+                  ] else ...[
+                    Text('${l10n.hafta}: ₹${regularHafta.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    if (item.interestAmount > 0)
+                      Text('${l10n.interest}: ₹${item.interestAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.interest)),
+                    if (item.loanPrincipalPaid > 0)
+                      Text('${l10n.principal}: ₹${item.loanPrincipalPaid.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: AppColors.primary)),
+                    Text(
+                      '${l10n.total}: ${CalculationUtils.formatCurrency(totalDisplayAmount)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -274,8 +319,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
   }
 
   Widget _buildLoansTab(List<Loan> loans) {
+    final l10n = AppLocalizations.of(context)!;
     if (loans.isEmpty) {
-      return const Center(child: Text('No loans issued for this member', style: TextStyle(color: AppColors.textMuted)));
+      return Center(child: Text(l10n.noLoansIssuedForMember, style: const TextStyle(color: AppColors.textMuted)));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -303,7 +349,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Loan: ₹${loan.originalPrincipal.toStringAsFixed(0)}',
+                    '${l10n.loan}: ₹${loan.originalPrincipal.toStringAsFixed(0)}',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                   Container(
@@ -313,7 +359,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      loan.status.name.toUpperCase(),
+                      isActive ? l10n.activeStatus.toUpperCase() : l10n.closedStatus.toUpperCase(),
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
@@ -325,7 +371,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
               ),
               const SizedBox(height: 6),
               Text(
-                'Issued: ${CalculationUtils.formatShortDate(loan.loanDate)} • Rate: ${loan.interestRate}%/mo',
+                '${l10n.issued}: ${CalculationUtils.formatShortDate(loan.loanDate)} • ${l10n.rate}: ${loan.interestRate}%/${l10n.perMonth}',
                 style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
               const Divider(height: 16),
@@ -335,14 +381,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Outstanding Principal', style: TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                      Text(l10n.outstandingPrincipal, style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
                       Text(CalculationUtils.formatCurrency(loan.pendingPrincipal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     ],
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('Monthly Interest (2%)', style: TextStyle(fontSize: 10, color: AppColors.interest, fontWeight: FontWeight.bold)),
+                      Text(l10n.monthlyInterestLabel, style: const TextStyle(fontSize: 10, color: AppColors.interest, fontWeight: FontWeight.bold)),
                       Text(CalculationUtils.formatCurrency(interestMo), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.interest)),
                     ],
                   ),
@@ -357,6 +403,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
 
   Widget _buildLedgerTab(BachatGatProvider provider) {
     _ledgerFuture ??= provider.getMemberLedger(_member.id);
+    final l10n = AppLocalizations.of(context)!;
 
     return FutureBuilder<List<MemberLedgerEntry>>(
       future: _ledgerFuture,
@@ -373,7 +420,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                 children: [
                   const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 36),
                   const SizedBox(height: 8),
-                  const Text('Failed to load ledger', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(l10n.failedLoadLedger, style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
@@ -382,7 +429,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
                       });
                     },
                     icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: const Text('Retry'),
+                    label: Text(l10n.retry),
                   ),
                 ],
               ),
@@ -391,7 +438,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
         }
         final entries = snapshot.data ?? [];
         if (entries.isEmpty) {
-          return const Center(child: Text('No ledger entries recorded', style: TextStyle(color: AppColors.textMuted)));
+          return Center(child: Text(l10n.noLedgerEntries, style: const TextStyle(color: AppColors.textMuted)));
         }
 
         return ListView.separated(
@@ -481,7 +528,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
@@ -505,36 +552,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
     );
   }
 
-  Future<void> _shareMemberLedger(BachatGatProvider provider, AppLocalizations l10n) async {
-    showDialog(
+  Future<void> _shareMemberProfile(AppLocalizations l10n) async {
+    await ShareService.openMemberWhatsAppChat(
+      member: _member,
+      languageCode: l10n.localeName,
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
-
-    try {
-      final entries = await provider.getMemberLedger(_member.id);
-      final group = await provider.watchGroup().first;
-
-      final pdfBytes = await PdfService.generateMemberLedgerBytes(
-        member: _member,
-        entries: entries,
-        groupName: group?.name ?? 'Bachat Gat',
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      await ShareService.shareMemberLedger(
-        member: _member,
-        pdfBytes: pdfBytes,
-        languageCode: l10n.localeName,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
   }
 
   Future<void> _generateAndActionReceipt(BachatGatProvider provider, AppLocalizations l10n, int month, int year, {required bool isShare}) async {
@@ -549,7 +572,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
       final group = await provider.watchGroup().first;
       
       final labels = {
-        'groupName': group?.name ?? 'Bachat Gat',
+        'groupName': CalculationUtils.resolveGroupName(group?.name, l10n.defaultGroupName),
         'monthlyReceipt': l10n.monthlyReceipt,
         'member': l10n.member,
         'phone': l10n.phone,
@@ -597,59 +620,158 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
   }
 
   void _editMember(BachatGatProvider provider) {
+    final l10n = AppLocalizations.of(context)!;
     final nameController = TextEditingController(text: _member.name);
     final phoneController = TextEditingController(text: _member.phone);
-    final amountController = TextEditingController(text: _member.monthlyContribution.toString());
+    final sharesController = TextEditingController(text: _member.shares.toString());
+    final perShareController = TextEditingController(text: _member.monthlyContributionPerShare.toStringAsFixed(0));
+    String? errorMessage;
+    bool isSubmitting = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Member'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
-            const SizedBox(height: 12),
-            TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Phone')),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountController,
-              decoration: const InputDecoration(labelText: 'Monthly Investment (₹)'),
-              keyboardType: TextInputType.number,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final shares = int.tryParse(sharesController.text) ?? _member.shares;
+          final perShare = double.tryParse(perShareController.text) ?? _member.monthlyContributionPerShare;
+          final totalMonthly = CalculationUtils.calculateMemberMonthlyHafta(
+            shares: shares,
+            contributionPerShare: perShare,
+          );
+
+          return AlertDialog(
+            title: Text(l10n.updateMember),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(errorMessage!, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(controller: nameController, decoration: InputDecoration(labelText: l10n.memberName)),
+                  const SizedBox(height: 12),
+                  TextField(controller: phoneController, decoration: InputDecoration(labelText: l10n.mobileNumber)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: sharesController,
+                          decoration: InputDecoration(labelText: l10n.sharesCount),
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setDialogState(() => errorMessage = null),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: perShareController,
+                          decoration: InputDecoration(labelText: '${l10n.perShare} (₹)'),
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setDialogState(() => errorMessage = null),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('${l10n.monthlyContribution}:', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(
+                          CalculationUtils.formatCurrency(totalMonthly),
+                          style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primary, fontSize: 15),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final newMember = _member.copyWith(
-                name: nameController.text,
-                phone: phoneController.text,
-                monthlyContribution: double.tryParse(amountController.text) ?? _member.monthlyContribution,
-                updatedAt: DateTime.now(),
-              );
-              
-              await provider.updateMember(newMember);
-              if (!context.mounted) return;
-              setState(() => _member = newMember);
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                child: Text(l10n.cancel),
+              ),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final parsedShares = int.tryParse(sharesController.text);
+                        if (parsedShares == null || parsedShares < 1) {
+                          setDialogState(() => errorMessage = 'Shares must be at least 1.');
+                          return;
+                        }
+                        final parsedPerShare = double.tryParse(perShareController.text);
+                        if (parsedPerShare == null || parsedPerShare < 0) {
+                          setDialogState(() => errorMessage = 'Contribution per share must be valid.');
+                          return;
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+
+                        try {
+                          final newMember = _member.copyWith(
+                            name: nameController.text.trim(),
+                            phone: phoneController.text.trim(),
+                            shares: parsedShares,
+                            monthlyContributionPerShare: parsedPerShare,
+                            monthlyContribution: parsedShares * parsedPerShare,
+                            updatedAt: DateTime.now(),
+                          );
+                          
+                          await provider.updateMember(newMember);
+                          if (!context.mounted) return;
+                          setState(() => _member = newMember);
+                          Navigator.pop(context);
+                        } catch (e) {
+                          setDialogState(() {
+                            isSubmitting = false;
+                            errorMessage = e.toString().replaceAll('Exception: ', '');
+                          });
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(l10n.save),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _deactivateMember(BachatGatProvider provider) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Deactivate Member'),
-        content: Text('Are you sure you want to deactivate ${_member.name}?'),
+        title: Text(l10n.deactivateMember),
+        content: Text(l10n.deactivateConfirm(_member.name)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
             onPressed: () async {
@@ -658,7 +780,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> with SingleTick
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back to members list
             },
-            child: const Text('Deactivate'),
+            child: Text(l10n.delete),
           ),
         ],
       ),

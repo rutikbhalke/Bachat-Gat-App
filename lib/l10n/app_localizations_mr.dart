@@ -18,13 +18,13 @@ class AppLocalizationsMr extends AppLocalizations {
   String get totalSavings => 'एकूण बचत';
 
   @override
-  String get activeLoans => 'सक्रिय कर्ज';
+  String get activeLoans => 'सक्रिय कर्जे';
 
   @override
   String get totalInterest => 'एकूण व्याज';
 
   @override
-  String get available => 'उपलब्ध';
+  String get available => 'उपलब्ध शिल्लक';
 
   @override
   String get quickActions => 'जलद कृती';
@@ -36,7 +36,7 @@ class AppLocalizationsMr extends AppLocalizations {
   String get members => 'सभासद';
 
   @override
-  String get addSavings => 'बचत जोडा';
+  String get addSavings => 'बचत जमा';
 
   @override
   String get loans => 'कर्ज';
@@ -102,7 +102,7 @@ class AppLocalizationsMr extends AppLocalizations {
   String get amountPaid => 'भरलेली रक्कम';
 
   @override
-  String get pending => 'प्रलंबित';
+  String get pending => 'बाकी';
 
   @override
   String get loan => 'कर्ज';
@@ -117,7 +117,7 @@ class AppLocalizationsMr extends AppLocalizations {
   String get monthlyInterest => 'मासिक व्याज';
 
   @override
-  String get loanRepaid => 'परत केलेले कर्ज मुद्दल';
+  String get loanRepaid => 'कर्ज परतफेड';
 
   @override
   String get closingLoan => 'अखेरचे प्रलंबित कर्ज';
@@ -135,7 +135,7 @@ class AppLocalizationsMr extends AppLocalizations {
   String get date => 'दिनांक';
 
   @override
-  String get collectionSummary => 'वसुली सारांश';
+  String get collectionSummary => 'भरणा सारांश';
 
   @override
   String get totalExpectedHafta => 'एकूण अपेक्षित हप्ता';
@@ -204,7 +204,10 @@ class AppLocalizationsMr extends AppLocalizations {
   String get close => 'बंद करा';
 
   @override
-  String get defaultGroupName => 'शिवशाही बचत गट';
+  String get defaultGroupName => 'छत्रपती बचत गट, घारगाव स्टँड';
+
+  @override
+  String get monthlyHaftaDueDate => 'मासिक हप्ता तारीख';
 
   @override
   String get monthlyPayment => 'मासिक भरणा';
@@ -379,4 +382,314 @@ class AppLocalizationsMr extends AppLocalizations {
   @override
   String get principalCannotExceedPending =>
       'मुद्दल परतफेड बाकी मुद्दलापेक्षा जास्त असू शकत नाही';
+
+  @override
+  String get monthly => 'मासिक';
+
+  @override
+  String get shares => 'शेअर्स';
+
+  @override
+  String get paidStatus => 'भरले';
+
+  @override
+  String get partialStatus => 'अंशतः भरले';
+
+  @override
+  String get selectMember => 'सभासद निवडा';
+
+  @override
+  String get recordMonthlyCollection => 'मासिक भरणा नोंदवा';
+
+  @override
+  String get searchMembers => 'सभासद शोधा...';
+
+  @override
+  String get allMembers => 'सर्व सभासद';
+
+  @override
+  String get save => 'जतन करा';
+
+  @override
+  String get memberProfile => 'सभासद प्रोफाइल';
+
+  @override
+  String get groupMembers => 'गटाचे सभासद';
+
+  @override
+  String get groupSettingsProfile => 'गट सेटिंग्ज आणि प्रोफाइल';
+
+  @override
+  String get groupName => 'गटाचे नाव';
+
+  @override
+  String get defaultMonthlyContribution => 'डिफॉल्ट मासिक भरणा';
+
+  @override
+  String get collections => 'भरणे';
+
+  @override
+  String get ledger => 'खातेवही';
+
+  @override
+  String get loanManagement => 'कर्ज व्यवस्थापन';
+
+  @override
+  String get monthlyCollection => 'मासिक भरणा';
+
+  @override
+  String get loanRepayment => 'कर्ज परतफेड';
+
+  @override
+  String get loanInterest => 'कर्जावरील व्याज';
+
+  @override
+  String get totalLoan => 'एकूण कर्ज';
+
+  @override
+  String get availableBalance => 'उपलब्ध शिल्लक';
+
+  @override
+  String get pendingMembers => 'बाकी असलेले सभासद';
+
+  @override
+  String get createLoan => 'कर्ज नोंदवा';
+
+  @override
+  String get loanAmount => 'कर्जाची रक्कम';
+
+  @override
+  String get dueDate => 'देय तारीख';
+
+  @override
+  String get status => 'स्थिती';
+
+  @override
+  String get activeStatus => 'सक्रिय';
+
+  @override
+  String get closedStatus => 'बंद';
+
+  @override
+  String get search => 'शोधा';
+
+  @override
+  String get refresh => 'पुन्हा लोड करा';
+
+  @override
+  String get delete => 'हटवा';
+
+  @override
+  String get edit => 'संपादित करा';
+
+  @override
+  String get editMember => 'सभासद माहिती बदला';
+
+  @override
+  String get addMember => 'सभासद जोडा';
+
+  @override
+  String get updateMember => 'सभासद अपडेट करा';
+
+  @override
+  String get memberName => 'सभासदाचे नाव';
+
+  @override
+  String get mobileNumber => 'मोबाईल क्रमांक';
+
+  @override
+  String get joinedDate => 'प्रवेश तारीख';
+
+  @override
+  String get defaultContribution => 'डिफॉल्ट भरणा';
+
+  @override
+  String get fullName => 'पूर्ण नाव';
+
+  @override
+  String get phoneNumber => 'फोन नंबर';
+
+  @override
+  String get sharesCount => 'शेअर्सची संख्या';
+
+  @override
+  String get perShare => 'प्रति शेअर';
+
+  @override
+  String get regularHaftaLabel => 'नियमित हप्ता (₹)';
+
+  @override
+  String get totalPaymentLabel => 'एकूण भरणा:';
+
+  @override
+  String get loanPrincipalRepaymentOptional =>
+      'कर्ज मुद्दल परतफेड (₹) (पर्यायी)';
+
+  @override
+  String get activeLoan => 'सक्रिय कर्ज';
+
+  @override
+  String get interestDue => 'देय व्याज';
+
+  @override
+  String get loanAmountLabel => 'कर्जाची रक्कम (₹)';
+
+  @override
+  String get monthlyInterestRatePercent => 'मासिक व्याज दर (%)';
+
+  @override
+  String get purposeOptional => 'उद्देश (पर्यायी)';
+
+  @override
+  String get availableForLending => 'कर्जासाठी उपलब्ध';
+
+  @override
+  String get maxAllowed => 'जास्तीत जास्त';
+
+  @override
+  String get selectActiveLoan => 'सक्रिय कर्ज निवडा';
+
+  @override
+  String get regularHaftaAmountLabel => 'नियमित हप्ता रक्कम (₹)';
+
+  @override
+  String get interestLabel => 'व्याज';
+
+  @override
+  String get totalInvested => 'एकूण जमा';
+
+  @override
+  String get outstandingLoan => 'बाकी कर्ज';
+
+  @override
+  String get investmentHistory => 'बचत इतिहास';
+
+  @override
+  String get current => 'सध्याचे';
+
+  @override
+  String get noHistoryFound => 'इतिहास आढळला नाही';
+
+  @override
+  String get joined => 'प्रवेश';
+
+  @override
+  String get groupSummary => 'गट सारांश';
+
+  @override
+  String get monthlyPerformance => 'मासिक कामगिरी';
+
+  @override
+  String get savingsGrowthChart => 'बचत वाढ तक्ता';
+
+  @override
+  String get comingInNextUpdate => 'पुढील अपडेटमध्ये येत आहे';
+
+  @override
+  String get january => 'जानेवारी';
+
+  @override
+  String get february => 'फेब्रुवारी';
+
+  @override
+  String get march => 'मार्च';
+
+  @override
+  String get april => 'एप्रिल';
+
+  @override
+  String get may => 'मे';
+
+  @override
+  String get june => 'जून';
+
+  @override
+  String get july => 'जुलै';
+
+  @override
+  String get august => 'ऑगस्ट';
+
+  @override
+  String get september => 'सप्टेंबर';
+
+  @override
+  String get october => 'ऑक्टोबर';
+
+  @override
+  String get november => 'नोव्हेंबर';
+
+  @override
+  String get december => 'डिसेंबर';
+
+  @override
+  String get notifications => 'सूचना';
+
+  @override
+  String get monthlyCollectionDue => 'मासिक वसुली देय';
+
+  @override
+  String get collectionScheduledTenth =>
+      'मासिक बचत वसुली १० तारखेला नियोजित आहे.';
+
+  @override
+  String get interestRule2Percent => '२% मासिक व्याज नियम';
+
+  @override
+  String get interestCalculatedAutomatically =>
+      'व्याज शिल्लक मुद्दलावर आपोआप मोजले जाते.';
+
+  @override
+  String get gotIt => 'समजले';
+
+  @override
+  String get settingsUpdatedSuccessfully =>
+      'सेटिंग्ज यशस्वीरित्या अपडेट केल्या';
+
+  @override
+  String get perShareAmount => 'प्रति शेअर';
+
+  @override
+  String get noMembersFound => 'एकूण सभासद आढळले नाहीत';
+
+  @override
+  String get noPendingMembersMatch =>
+      'शोधण्यासारखे कोणतेही प्रलंबित सभासद नाहीत';
+
+  @override
+  String get moInterestLabel => '२% मासिक व्याज';
+
+  @override
+  String get overdue => 'मुदत संपली';
+
+  @override
+  String get due => 'देय';
+
+  @override
+  String get issued => 'दिले';
+
+  @override
+  String get rate => 'दर';
+
+  @override
+  String get monthlyInterestLabel => 'मासिक व्याज (२%)';
+
+  @override
+  String get failedLoadLedger => 'खातेवही लोड करण्यात अयशस्वी';
+
+  @override
+  String get noLedgerEntries => 'खातेवहीमध्ये कोणतीही नोंद नाही';
+
+  @override
+  String get deactivateMember => 'सभासद निष्क्रिय करा';
+
+  @override
+  String deactivateConfirm(Object name) {
+    return 'तुम्हाला खात्री आहे की तुम्ही $name ला निष्क्रिय करू इच्छिता?';
+  }
+
+  @override
+  String get noCollectionHistoryFound => 'वसुली इतिहास आढळला नाही';
+
+  @override
+  String get noLoansIssuedForMember => 'या सभासदासाठी कोणतेही कर्ज दिलेले नाही';
 }

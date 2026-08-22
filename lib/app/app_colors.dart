@@ -76,9 +76,9 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFAD1457),
+      Color(0xFFDF327E),
       Color(0xFFE91E63),
-      Color(0xFFF06292),
+      Color(0xFFE45383),
     ],
   );
 }

@@ -52,7 +52,7 @@ void main() {
 
     test('5. Group Info popup localization strings match exact requirements', () {
       final mr = AppLocalizationsMr();
-      expect(mr.defaultGroupName, 'शिवशाही बचत गट');
+      expect(mr.defaultGroupName, 'छत्रपती बचत गट, घारगाव स्टँड');
       expect(mr.groupId, 'गट क्रमांक');
       expect(mr.monthlyContribution, 'मासिक बचत');
       expect(mr.perMember, 'प्रति सभासद');
@@ -61,7 +61,7 @@ void main() {
       expect(mr.close, 'बंद करा');
 
       final en = AppLocalizationsEn();
-      expect(en.defaultGroupName, 'Shivshahi Bachat Gat');
+      expect(en.defaultGroupName, 'Chhatrapati Bachat Gat, Ghargaon Stand');
       expect(en.groupId, 'Group ID');
       expect(en.monthlyContribution, 'Monthly Contribution');
       expect(en.perMember, 'per member');

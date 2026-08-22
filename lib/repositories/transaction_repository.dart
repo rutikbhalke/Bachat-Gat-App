@@ -5,7 +5,6 @@ import '../models/loan.dart';
 import '../models/loan_repayment.dart';
 import '../models/transaction.dart';
 import '../core/utils/perf_logger.dart';
-import '../core/utils/calculation_utils.dart';
 
 class TransactionRepository {
   final FirebaseService _firebaseService;
@@ -125,44 +124,104 @@ class TransactionRepository {
     LoanRepayment? repayment,
   }) async {
     return PerfLogger.traceAsync('recordContribution(${contribution.id})', () async {
-      // 1. Prevent duplicate collection for same member, month, year
-      final existingContribs = await _firebaseService.monthlyContributions(groupId)
-          .where('memberId', isEqualTo: contribution.memberId)
-          .where('month', isEqualTo: contribution.month)
-          .where('year', isEqualTo: contribution.year)
-          .get();
-
-      if (existingContribs.docs.isNotEmpty && existingContribs.docs.first.id != contribution.id) {
-        throw Exception('A contribution for member ${contribution.memberId} for ${contribution.month}/${contribution.year} already exists.');
-      }
-
-      if (loan != null && repayment != null) {
-        final existingRepayments = await _firebaseService.loanRepayments(groupId)
-            .where('loanId', isEqualTo: loan.id)
-            .where('month', isEqualTo: repayment.month)
-            .where('year', isEqualTo: repayment.year)
-            .get();
-
-        if (existingRepayments.docs.isNotEmpty && existingRepayments.docs.first.id != repayment.id) {
-          throw Exception('A loan repayment for loan ${loan.id} for ${repayment.month}/${repayment.year} already exists.');
-        }
+      if (tx.amount <= 0) {
+        throw Exception('Payment amount must be greater than zero.');
       }
 
       await _firebaseService.firestore.runTransaction((transaction) async {
-        // 1. Record Monthly Contribution
-        final contributionRef = _firebaseService.monthlyContributions(groupId).doc(contribution.id);
-        transaction.set(contributionRef, contribution.toJson());
+        final groupRef = _firebaseService.groups.doc(groupId);
+        final groupDoc = await transaction.get(groupRef);
+        if (!groupDoc.exists) {
+          throw Exception('Group $groupId does not exist.');
+        }
+
+        // 1. Record/Update Monthly Contribution
+        // Use deterministic ID for reliability
+        final docId = MonthlyContribution.generateId(
+          memberId: contribution.memberId,
+          month: contribution.month,
+          year: contribution.year,
+        );
+        final contributionRef = _firebaseService.monthlyContributions(groupId).doc(docId);
+        final existingContribDoc = await transaction.get(contributionRef);
+        
+        MonthlyContribution toSave;
+        double incRegular = 0.0;
+        double incInterest = 0.0;
+        double incPrincipal = 0.0;
+
+        if (repayment != null) {
+          incRegular = repayment.regularContribution;
+          incInterest = repayment.interestAmount;
+          incPrincipal = repayment.principalRepaid;
+        } else {
+          incRegular = tx.amount;
+        }
+
+        if (existingContribDoc.exists) {
+          final existing = MonthlyContribution.fromJson(existingContribDoc.data() as Map<String, dynamic>);
+          
+          final isAlreadyPaid = existing.status == ContributionStatus.paid ||
+              (existing.expectedAmount > 0 && existing.paidAmount >= existing.expectedAmount);
+          if (isAlreadyPaid && incRegular > 0) {
+            throw Exception('या महिन्याचा हप्ता आधीच भरला गेला आहे (Payment for this month is already completed for this member).');
+          }
+
+          final totalPaidHaftaSoFar = existing.paidAmount + incRegular;
+          final newStatus = totalPaidHaftaSoFar >= existing.expectedAmount ? ContributionStatus.paid : (totalPaidHaftaSoFar > 0 ? ContributionStatus.partial : ContributionStatus.pending);
+
+          toSave = MonthlyContribution(
+            id: docId,
+            memberId: existing.memberId,
+            groupId: groupId,
+            month: existing.month,
+            year: existing.year,
+            regularHaftaAmount: existing.regularHaftaAmount,
+            interestAmount: existing.interestAmount + incInterest,
+            loanPrincipalPaid: existing.loanPrincipalPaid + incPrincipal,
+            totalPaid: existing.totalPaid + tx.amount,
+            expectedAmount: existing.expectedAmount,
+            paidAmount: totalPaidHaftaSoFar,
+            status: newStatus,
+            paymentDate: tx.date,
+            createdAt: existing.createdAt,
+            updatedAt: DateTime.now(),
+          );
+        } else {
+          // Create new
+          toSave = contribution.copyWith(
+            id: docId,
+            paidAmount: incRegular,
+            interestAmount: incInterest,
+            loanPrincipalPaid: incPrincipal,
+            totalPaid: tx.amount,
+            status: incRegular >= contribution.expectedAmount ? ContributionStatus.paid : (incRegular > 0 ? ContributionStatus.partial : ContributionStatus.pending),
+          );
+        }
+
+        transaction.set(contributionRef, toSave.toJson());
 
         // 2. Record Loan Repayment if applicable
         if (loan != null && repayment != null) {
+          final loanRef = _firebaseService.loans(groupId).doc(loan.id);
+          final loanDoc = await transaction.get(loanRef);
+          if (!loanDoc.exists) {
+            throw Exception('Loan ${loan.id} does not exist.');
+          }
+
+          final currentLoan = Loan.fromJson(loanDoc.data() as Map<String, dynamic>);
+          if (incPrincipal > currentLoan.pendingPrincipal) {
+            throw Exception('Principal repayment (₹$incPrincipal) cannot exceed outstanding loan (₹${currentLoan.pendingPrincipal}).');
+          }
+
           final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repayment.id);
           transaction.set(repaymentRef, repayment.toJson());
 
-          final loanRef = _firebaseService.loans(groupId).doc(loan.id);
-          final newPending = loan.pendingPrincipal - repayment.principalRepaid;
+          final newPending = currentLoan.pendingPrincipal - incPrincipal;
+          final validNewPending = newPending > 0 ? newPending : 0.0;
           transaction.update(loanRef, {
-            'pendingPrincipal': newPending > 0 ? newPending : 0.0,
-            'status': newPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
+            'pendingPrincipal': validNewPending,
+            'status': validNewPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
             'updatedAt': DateTime.now().toIso8601String(),
           });
         }
@@ -172,25 +231,29 @@ class TransactionRepository {
         transaction.set(activityRef, tx.toJson());
 
         // 4. Update Group totals
-        final groupRef = _firebaseService.groups.doc(groupId);
-        final updates = <String, dynamic>{
+        transaction.update(groupRef, {
           'totalFund': FieldValue.increment(tx.amount),
-          'totalSavings': FieldValue.increment(contribution.regularHaftaAmount),
+          'totalSavings': FieldValue.increment(incRegular),
+          'totalOutstandingLoans': FieldValue.increment(-incPrincipal),
+          'totalInterestCollected': FieldValue.increment(incInterest),
           'updatedAt': DateTime.now().toIso8601String(),
-        };
-
-        if (repayment != null) {
-          updates['totalOutstandingLoans'] = FieldValue.increment(-repayment.principalRepaid);
-          updates['totalInterestCollected'] = FieldValue.increment(repayment.interestAmount);
-        }
-
-        transaction.update(groupRef, updates);
+        });
       });
     });
   }
 
   Future<void> issueLoan(String groupId, Loan loan, AppTransaction tx) async {
     return PerfLogger.traceAsync('issueLoan(${loan.id})', () async {
+      if (loan.originalPrincipal <= 0 || tx.amount <= 0) {
+        throw Exception('Loan amount must be greater than zero.');
+      }
+
+      final positivePrincipal = loan.originalPrincipal >= 0 ? loan.originalPrincipal : -loan.originalPrincipal;
+      final sanitizedLoan = loan.copyWith(
+        pendingPrincipal: positivePrincipal,
+        status: LoanStatus.active,
+      );
+
       await _firebaseService.firestore.runTransaction((transaction) async {
         final groupRef = _firebaseService.groups.doc(groupId);
         final groupDoc = await transaction.get(groupRef);
@@ -201,32 +264,24 @@ class TransactionRepository {
 
         final groupData = groupDoc.data() as Map<String, dynamic>;
         final totalSavings = (groupData['totalSavings'] as num?)?.toDouble() ?? 0.0;
+        final totalInterest = (groupData['totalInterestCollected'] as num?)?.toDouble() ?? 0.0;
         final totalOutstandingLoans = (groupData['totalOutstandingLoans'] as num?)?.toDouble() ?? 0.0;
-        final availableFund = CalculationUtils.calculateAvailableFund(
-          totalSavings: totalSavings,
-          outstandingLoans: totalOutstandingLoans,
-        );
+        
+        final availableBalance = ((totalSavings + totalInterest) - totalOutstandingLoans) > 0
+            ? ((totalSavings + totalInterest) - totalOutstandingLoans)
+            : 0.0;
 
-        if (loan.originalPrincipal <= 0) {
-          throw Exception('Loan amount must be greater than zero.');
+        if (positivePrincipal > availableBalance) {
+          throw Exception('Insufficient available balance for this loan.');
         }
 
-        if (loan.originalPrincipal > availableFund) {
-          if (availableFund <= 0) {
-            throw Exception('No available group fund for a new loan.');
-          }
-          throw Exception(
-            'Available group fund is ${CalculationUtils.formatCurrency(availableFund)}. Maximum loan amount allowed is ${CalculationUtils.formatCurrency(availableFund)}.',
-          );
-        }
-
-        transaction.set(_firebaseService.loans(groupId).doc(loan.id), loan.toJson());
+        transaction.set(_firebaseService.loans(groupId).doc(sanitizedLoan.id), sanitizedLoan.toJson());
         transaction.set(_firebaseService.activities(groupId).doc(tx.id), tx.toJson());
         
-        // Update group totals
+        // Update group totals atomically
         transaction.update(groupRef, {
-          'totalFund': FieldValue.increment(-tx.amount), // Loan reduces available fund
-          'totalOutstandingLoans': FieldValue.increment(tx.amount),
+          'totalFund': FieldValue.increment(-positivePrincipal),
+          'totalOutstandingLoans': FieldValue.increment(positivePrincipal),
           'updatedAt': DateTime.now().toIso8601String(),
         });
       });
@@ -241,49 +296,127 @@ class TransactionRepository {
     MonthlyContribution? contribution,
   }) async {
     return PerfLogger.traceAsync('recordLoanRepayment(${loan.id})', () async {
-      final existingRepayments = await _firebaseService.loanRepayments(groupId)
-          .where('loanId', isEqualTo: loan.id)
-          .where('month', isEqualTo: repayment.month)
-          .where('year', isEqualTo: repayment.year)
-          .get();
-
-      if (existingRepayments.docs.isNotEmpty && existingRepayments.docs.first.id != repayment.id) {
-        throw Exception('A repayment for loan ${loan.id} for ${repayment.month}/${repayment.year} already exists.');
+      if (repayment.totalPaid <= 0 || tx.amount <= 0) {
+        throw Exception('Repayment amount must be greater than zero.');
+      }
+      if (repayment.principalRepaid < 0 || repayment.interestAmount < 0 || repayment.regularContribution < 0) {
+        throw Exception('Repayment breakdown amounts cannot be negative.');
       }
 
       await _firebaseService.firestore.runTransaction((transaction) async {
-        // 1. Record the repayment event
-        transaction.set(_firebaseService.loanRepayments(groupId).doc(repayment.id), repayment.toJson());
+        final loanRef = _firebaseService.loans(groupId).doc(loan.id);
+        final loanDoc = await transaction.get(loanRef);
+        if (!loanDoc.exists) {
+          throw Exception('Loan ${loan.id} does not exist.');
+        }
 
-        // 2. Record monthly contribution if provided
-        if (contribution != null) {
-          transaction.set(_firebaseService.monthlyContributions(groupId).doc(contribution.id), contribution.toJson());
+        final currentLoan = Loan.fromJson(loanDoc.data() as Map<String, dynamic>);
+        
+        final groupRef = _firebaseService.groups.doc(groupId);
+        final groupDoc = await transaction.get(groupRef);
+        if (!groupDoc.exists) {
+          throw Exception('Group $groupId does not exist.');
+        }
+
+        // 1. Record/Update the repayment event
+        // Use deterministic ID: R_loanId_year_month
+        final periodSuffix = '${repayment.year}_${repayment.month.toString().padLeft(2, '0')}';
+        final repaymentDocId = 'R_${loan.id}_$periodSuffix';
+        final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repaymentDocId);
+        final existingRepaymentDoc = await transaction.get(repaymentRef);
+
+        LoanRepayment toSaveRepayment = repayment.copyWith(id: repaymentDocId);
+        if (existingRepaymentDoc.exists) {
+          final existing = LoanRepayment.fromJson(existingRepaymentDoc.data() as Map<String, dynamic>);
+          toSaveRepayment = LoanRepayment(
+            id: repaymentDocId,
+            loanId: existing.loanId,
+            groupId: existing.groupId,
+            memberId: existing.memberId,
+            month: existing.month,
+            year: existing.year,
+            openingPrincipal: existing.openingPrincipal, // Keep original opening
+            interestRate: existing.interestRate,
+            interestAmount: existing.interestAmount + repayment.interestAmount,
+            regularContribution: existing.regularContribution + repayment.regularContribution,
+            principalRepaid: existing.principalRepaid + repayment.principalRepaid,
+            totalPaid: existing.totalPaid + repayment.totalPaid,
+            closingPrincipal: existing.closingPrincipal - repayment.principalRepaid > 0 
+                ? existing.closingPrincipal - repayment.principalRepaid 
+                : 0.0,
+            paymentDate: tx.date,
+            createdAt: existing.createdAt,
+            updatedAt: DateTime.now(),
+          );
+        }
+        transaction.set(repaymentRef, toSaveRepayment.toJson());
+
+        // 2. Record/Update monthly contribution if regular payment included
+        if (repayment.regularContribution > 0 || contribution != null) {
+          final docId = MonthlyContribution.generateId(
+            memberId: loan.memberId,
+            month: repayment.month,
+            year: repayment.year,
+          );
+          final contributionRef = _firebaseService.monthlyContributions(groupId).doc(docId);
+          final existingContribDoc = await transaction.get(contributionRef);
+
+          if (existingContribDoc.exists) {
+            final existing = MonthlyContribution.fromJson(existingContribDoc.data() as Map<String, dynamic>);
+            
+            final isAlreadyPaid = existing.status == ContributionStatus.paid ||
+                (existing.expectedAmount > 0 && existing.paidAmount >= existing.expectedAmount);
+            if (isAlreadyPaid && repayment.regularContribution > 0) {
+              throw Exception('या महिन्याचा हप्ता आधीच भरला गेला आहे (Payment for this month is already completed for this member).');
+            }
+
+            final newRegularPaid = existing.paidAmount + repayment.regularContribution;
+            final newStatus = newRegularPaid >= existing.expectedAmount ? ContributionStatus.paid : (newRegularPaid > 0 ? ContributionStatus.partial : ContributionStatus.pending);
+
+            final updatedContrib = MonthlyContribution(
+              id: docId,
+              memberId: existing.memberId,
+              groupId: groupId,
+              month: existing.month,
+              year: existing.year,
+              regularHaftaAmount: existing.regularHaftaAmount,
+              interestAmount: existing.interestAmount + repayment.interestAmount,
+              loanPrincipalPaid: existing.loanPrincipalPaid + repayment.principalRepaid,
+              totalPaid: existing.totalPaid + tx.amount,
+              expectedAmount: existing.expectedAmount,
+              paidAmount: newRegularPaid,
+              status: newStatus,
+              paymentDate: tx.date,
+              createdAt: existing.createdAt,
+              updatedAt: DateTime.now(),
+            );
+            transaction.set(contributionRef, updatedContrib.toJson());
+          } else if (contribution != null) {
+            transaction.set(contributionRef, contribution.copyWith(id: docId).toJson());
+          }
         }
         
         // 3. Record the activity
-        transaction.set(_firebaseService.activities(groupId).doc(tx.id), tx.toJson());
+        final activityRef = _firebaseService.activities(groupId).doc(tx.id);
+        transaction.set(activityRef, tx.toJson());
         
         // 4. Update Loan pending balance
-        final loanRef = _firebaseService.loans(groupId).doc(loan.id);
-        final newPending = loan.pendingPrincipal - repayment.principalRepaid;
+        final newPending = currentLoan.pendingPrincipal - repayment.principalRepaid;
+        final validNewPending = newPending > 0 ? newPending : 0.0;
         transaction.update(loanRef, {
-          'pendingPrincipal': newPending > 0 ? newPending : 0.0,
-          'status': newPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
+          'pendingPrincipal': validNewPending,
+          'status': validNewPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
           'updatedAt': DateTime.now().toIso8601String(),
         });
 
         // 5. Update Group totals
-        final groupRef = _firebaseService.groups.doc(groupId);
-        final updates = <String, dynamic>{
+        transaction.update(groupRef, {
           'totalFund': FieldValue.increment(tx.amount),
+          'totalSavings': FieldValue.increment(repayment.regularContribution),
           'totalOutstandingLoans': FieldValue.increment(-repayment.principalRepaid),
           'totalInterestCollected': FieldValue.increment(repayment.interestAmount),
           'updatedAt': DateTime.now().toIso8601String(),
-        };
-        if (repayment.regularContribution > 0) {
-          updates['totalSavings'] = FieldValue.increment(repayment.regularContribution);
-        }
-        transaction.update(groupRef, updates);
+        });
       });
     });
   }

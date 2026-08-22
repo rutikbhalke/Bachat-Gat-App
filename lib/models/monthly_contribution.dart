@@ -37,10 +37,29 @@ class MonthlyContribution {
     required this.updatedAt,
   })  : regularHaftaAmount = regularHaftaAmount ?? expectedAmount ?? 0.0,
         expectedAmount = expectedAmount ?? regularHaftaAmount ?? 0.0,
-        totalPaid = totalPaid ?? paidAmount ?? ((regularHaftaAmount ?? 0.0) + (interestAmount) + (loanPrincipalPaid)),
-        paidAmount = paidAmount ?? totalPaid ?? ((regularHaftaAmount ?? 0.0) + (interestAmount) + (loanPrincipalPaid));
+        paidAmount = paidAmount ?? 0.0,
+        totalPaid = totalPaid ?? (paidAmount ?? 0.0) + interestAmount + loanPrincipalPaid;
 
-  double get pendingAmount => expectedAmount - (paidAmount - interestAmount - loanPrincipalPaid > 0 ? paidAmount - interestAmount - loanPrincipalPaid : (paidAmount > expectedAmount ? expectedAmount : paidAmount));
+  double get remainingAmount {
+    return (expectedAmount - paidAmount).clamp(0.0, double.infinity);
+  }
+  double get pendingAmount => remainingAmount;
+
+  /// Returns only the regular savings/hafta portion actually paid for this monthly obligation.
+  double get actualRegularPaid {
+    // If interest or principal are explicitly tracked as non-zero on this record,
+    // we must ensure they are not part of the 'paidAmount' if 'paidAmount' was
+    // recorded as the total payment (legacy behavior).
+    if (interestAmount > 0 || loanPrincipalPaid > 0) {
+      // If paidAmount matches totalPaid, it likely includes interest/principal
+      if ((paidAmount - totalPaid).abs() < 0.01) {
+        final regular = totalPaid - interestAmount - loanPrincipalPaid;
+        return regular > 0 ? (regular > expectedAmount ? expectedAmount : regular) : 0.0;
+      }
+    }
+    // Otherwise trust paidAmount but clamp to expected
+    return paidAmount > expectedAmount ? expectedAmount : paidAmount;
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -60,6 +79,44 @@ class MonthlyContribution {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
+
+  MonthlyContribution copyWith({
+    String? id,
+    String? memberId,
+    String? groupId,
+    int? month,
+    int? year,
+    double? regularHaftaAmount,
+    double? interestAmount,
+    double? loanPrincipalPaid,
+    double? totalPaid,
+    double? expectedAmount,
+    double? paidAmount,
+    DateTime? paymentDate,
+    ContributionStatus? status,
+    String? notes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MonthlyContribution(
+      id: id ?? this.id,
+      memberId: memberId ?? this.memberId,
+      groupId: groupId ?? this.groupId,
+      month: month ?? this.month,
+      year: year ?? this.year,
+      regularHaftaAmount: regularHaftaAmount ?? this.regularHaftaAmount,
+      interestAmount: interestAmount ?? this.interestAmount,
+      loanPrincipalPaid: loanPrincipalPaid ?? this.loanPrincipalPaid,
+      totalPaid: totalPaid ?? this.totalPaid,
+      expectedAmount: expectedAmount ?? this.expectedAmount,
+      paidAmount: paidAmount ?? this.paidAmount,
+      paymentDate: paymentDate ?? this.paymentDate,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   factory MonthlyContribution.fromJson(Map<String, dynamic> json) {
     final regular = (json['regularHaftaAmount'] ?? json['expectedAmount'] ?? 0.0) as num;
@@ -87,5 +144,14 @@ class MonthlyContribution {
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  static String generateId({
+    required String memberId,
+    required int month,
+    required int year,
+  }) {
+    final monthStr = month.toString().padLeft(2, '0');
+    return 'C_${memberId}_${year}_$monthStr';
   }
 }

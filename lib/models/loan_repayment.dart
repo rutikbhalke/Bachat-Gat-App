@@ -41,6 +41,44 @@ class LoanRepayment {
   double get totalPayment => totalPaid;
   double get pendingPrincipalAfterPayment => closingPrincipal;
 
+  LoanRepayment copyWith({
+    String? id,
+    String? loanId,
+    String? groupId,
+    String? memberId,
+    int? month,
+    int? year,
+    double? openingPrincipal,
+    double? interestRate,
+    double? interestAmount,
+    double? regularContribution,
+    double? principalRepaid,
+    double? totalPaid,
+    double? closingPrincipal,
+    DateTime? paymentDate,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return LoanRepayment(
+      id: id ?? this.id,
+      loanId: loanId ?? this.loanId,
+      groupId: groupId ?? this.groupId,
+      memberId: memberId ?? this.memberId,
+      month: month ?? this.month,
+      year: year ?? this.year,
+      openingPrincipal: openingPrincipal ?? this.openingPrincipal,
+      interestRate: interestRate ?? this.interestRate,
+      interestAmount: interestAmount ?? this.interestAmount,
+      regularContribution: regularContribution ?? this.regularContribution,
+      principalRepaid: principalRepaid ?? this.principalRepaid,
+      totalPaid: totalPaid ?? this.totalPaid,
+      closingPrincipal: closingPrincipal ?? this.closingPrincipal,
+      paymentDate: paymentDate ?? this.paymentDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'repaymentId': id,

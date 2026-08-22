@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/report_models.dart';
 import '../models/member.dart';
 import '../core/utils/calculation_utils.dart';
@@ -11,7 +13,7 @@ class ShareService {
     required Uint8List pdfBytes,
     required String languageCode,
   }) async {
-    final monthName = CalculationUtils.getMonthName(report.month);
+    final monthName = CalculationUtils.getMonthName(report.month, locale: languageCode);
     final filename = 'BG_Receipt_${report.member.name}_${report.month}_${report.year}.pdf';
     
     String message;
@@ -62,7 +64,7 @@ class ShareService {
     required Uint8List pdfBytes,
     required String languageCode,
   }) async {
-    final monthName = CalculationUtils.getMonthName(report.month);
+    final monthName = CalculationUtils.getMonthName(report.month, locale: languageCode);
     final filename = 'BG_Group_Report_${report.month}_${report.year}.pdf';
     
     String message;
@@ -187,5 +189,73 @@ class ShareService {
       buffer.toString(),
       subject: 'Pending Dues Summary',
     );
+  }
+
+  /// Opens WhatsApp direct chat with the member at `https://wa.me/{normalizedPhone}?text={encodedMessage}`
+  /// Does NOT open generic contact selection or system share sheets.
+  static Future<bool> openMemberWhatsAppChat({
+    required Member member,
+    required String languageCode,
+    int? month,
+    int? year,
+    BuildContext? context,
+  }) async {
+    final normalizedPhone = CalculationUtils.normalizeIndianPhoneNumber(member.phone);
+    if (normalizedPhone == null) {
+      if (context != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('या सदस्याचा वैध मोबाइल नंबर उपलब्ध नाही.'),
+            backgroundColor: Color(0xFFE53935),
+          ),
+        );
+      }
+      return false;
+    }
+
+    final targetMonth = month ?? DateTime.now().month;
+    final targetYear = year ?? DateTime.now().year;
+    final monthName = CalculationUtils.getMonthName(targetMonth, locale: languageCode);
+
+    final buffer = StringBuffer();
+    if (languageCode == 'mr') {
+      buffer.writeln("नमस्कार ${member.name},");
+      buffer.writeln("");
+      buffer.writeln("तुमच्या बचत गटाची माहिती:");
+      buffer.writeln("");
+      buffer.writeln("हप्ता: ${CalculationUtils.formatCurrency(member.monthlyContribution)}");
+      if (member.shares > 1) {
+        buffer.writeln("शेअर्स: ${member.shares}");
+      }
+      buffer.writeln("महिना: $monthName $targetYear");
+      buffer.writeln("");
+      buffer.writeln("धन्यवाद.");
+    } else {
+      buffer.writeln("Namaskar ${member.name},");
+      buffer.writeln("");
+      buffer.writeln("Your Bachat Gat Details:");
+      buffer.writeln("");
+      buffer.writeln("Monthly Hafta: ${CalculationUtils.formatCurrency(member.monthlyContribution)}");
+      if (member.shares > 1) {
+        buffer.writeln("Shares: ${member.shares}");
+      }
+      buffer.writeln("Month: $monthName $targetYear");
+      buffer.writeln("");
+      buffer.writeln("Thank you.");
+    }
+
+    final message = buffer.toString();
+    final encodedMessage = Uri.encodeComponent(message);
+    final whatsappUri = Uri.parse('https://wa.me/$normalizedPhone?text=$encodedMessage');
+
+    try {
+      if (await canLaunchUrl(whatsappUri)) {
+        return await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+      } else {
+        return await launchUrl(whatsappUri);
+      }
+    } catch (_) {
+      return await launchUrl(whatsappUri);
+    }
   }
 }

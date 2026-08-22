@@ -212,6 +212,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     int selectedYear = now.year;
     final l10n = AppLocalizations.of(context)!;
     final isMarathi = l10n.localeName == 'mr';
+    bool isSubmitting = false;
 
     showDialog(
       context: context,
@@ -304,90 +305,107 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                child: Text(l10n.cancel),
+              ),
               ElevatedButton(
-                onPressed: () async {
-                  if (totalPayment > 0) {
-                    if (principalRepaid > _loan.pendingPrincipal) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.principalCannotExceedPending)));
-                      return;
-                    }
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        if (totalPayment > 0) {
+                          if (principalRepaid > _loan.pendingPrincipal) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.principalCannotExceedPending)));
+                            return;
+                          }
 
-                    final recordDate = DateTime.now();
-                    final periodSuffix = '${selectedYear}_${selectedMonth.toString().padLeft(2, '0')}';
-                    final newClosing = _loan.pendingPrincipal - principalRepaid > 0
-                        ? _loan.pendingPrincipal - principalRepaid
-                        : 0.0;
+                          setDialogState(() => isSubmitting = true);
 
-                    final repayment = LoanRepayment(
-                      id: 'R_${_loan.id}_$periodSuffix',
-                      loanId: _loan.id,
-                      groupId: provider.groupId,
-                      memberId: _loan.memberId,
-                      month: selectedMonth,
-                      year: selectedYear,
-                      openingPrincipal: _loan.pendingPrincipal,
-                      interestRate: _loan.interestRate,
-                      interestAmount: interestAmount,
-                      regularContribution: regularHafta,
-                      principalRepaid: principalRepaid,
-                      totalPaid: totalPayment,
-                      closingPrincipal: newClosing,
-                      paymentDate: recordDate,
-                      createdAt: recordDate,
-                      updatedAt: recordDate,
-                    );
+                          try {
+                            final recordDate = DateTime.now();
+                            final periodSuffix = '${selectedYear}_${selectedMonth.toString().padLeft(2, '0')}';
+                            final newClosing = _loan.pendingPrincipal - principalRepaid > 0
+                                ? _loan.pendingPrincipal - principalRepaid
+                                : 0.0;
 
-                    final contribution = regularHafta > 0
-                        ? MonthlyContribution(
-                            id: 'C_${_loan.memberId}_$periodSuffix',
-                            memberId: _loan.memberId,
-                            groupId: provider.groupId,
-                            month: selectedMonth,
-                            year: selectedYear,
-                            regularHaftaAmount: regularHafta,
-                            interestAmount: interestAmount,
-                            loanPrincipalPaid: principalRepaid,
-                            totalPaid: totalPayment,
-                            expectedAmount: regularHafta,
-                            paidAmount: totalPayment,
-                            status: ContributionStatus.paid,
-                            paymentDate: recordDate,
-                            createdAt: recordDate,
-                            updatedAt: recordDate,
-                          )
-                        : null;
+                            final repayment = LoanRepayment(
+                              id: 'R_${_loan.id}_$periodSuffix',
+                              loanId: _loan.id,
+                              groupId: provider.groupId,
+                              memberId: _loan.memberId,
+                              month: selectedMonth,
+                              year: selectedYear,
+                              openingPrincipal: _loan.pendingPrincipal,
+                              interestRate: _loan.interestRate,
+                              interestAmount: interestAmount,
+                              regularContribution: regularHafta,
+                              principalRepaid: principalRepaid,
+                              totalPaid: totalPayment,
+                              closingPrincipal: newClosing,
+                              paymentDate: recordDate,
+                              createdAt: recordDate,
+                              updatedAt: recordDate,
+                            );
 
-                    final tx = AppTransaction(
-                      id: 'T_${_loan.memberId}_$periodSuffix',
-                      memberId: _loan.memberId,
-                      memberName: 'Member',
-                      type: TransactionType.loanRepayment,
-                      amount: totalPayment,
-                      date: recordDate,
-                      description: 'Loan Repayment - ${CalculationUtils.getMonthName(selectedMonth)} $selectedYear (Interest: ₹$interestAmount, Principal: ₹$principalRepaid)',
-                      referenceId: _loan.id,
-                    );
+                            final contribution = regularHafta > 0
+                                ? MonthlyContribution(
+                                    id: 'C_${_loan.memberId}_$periodSuffix',
+                                    memberId: _loan.memberId,
+                                    groupId: provider.groupId,
+                                    month: selectedMonth,
+                                    year: selectedYear,
+                                    regularHaftaAmount: regularHafta,
+                                    interestAmount: interestAmount,
+                                    loanPrincipalPaid: principalRepaid,
+                                    totalPaid: totalPayment,
+                                    expectedAmount: regularHafta,
+                                    paidAmount: totalPayment,
+                                    status: ContributionStatus.paid,
+                                    paymentDate: recordDate,
+                                    createdAt: recordDate,
+                                    updatedAt: recordDate,
+                                  )
+                                : null;
 
-                    await provider.recordLoanRepayment(
-                      loan: _loan,
-                      repayment: repayment,
-                      tx: tx,
-                      contribution: contribution,
-                    );
+                            final tx = AppTransaction(
+                              id: 'T_${_loan.memberId}_$periodSuffix',
+                              memberId: _loan.memberId,
+                              memberName: 'Member',
+                              type: TransactionType.loanRepayment,
+                              amount: totalPayment,
+                              date: recordDate,
+                              description: 'Loan Repayment - ${CalculationUtils.getMonthName(selectedMonth)} $selectedYear (Interest: ₹$interestAmount, Principal: ₹$principalRepaid)',
+                              referenceId: _loan.id,
+                            );
 
-                    setState(() {
-                      _loan = _loan.copyWith(
-                        pendingPrincipal: newClosing,
-                        status: newClosing <= 0 ? LoanStatus.closed : LoanStatus.active,
-                      );
-                    });
+                            await provider.recordLoanRepayment(
+                              loan: _loan,
+                              repayment: repayment,
+                              tx: tx,
+                              contribution: contribution,
+                            );
 
-                    if (!dialogContext.mounted) return;
-                    Navigator.pop(dialogContext);
-                  }
-                },
-                child: Text(l10n.record),
+                            setState(() {
+                              _loan = _loan.copyWith(
+                                pendingPrincipal: newClosing,
+                                status: newClosing <= 0 ? LoanStatus.closed : LoanStatus.active,
+                              );
+                            });
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                          } catch (e) {
+                            setDialogState(() => isSubmitting = false);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                            );
+                          }
+                        }
+                      },
+                child: isSubmitting
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(l10n.record),
               ),
             ],
           );

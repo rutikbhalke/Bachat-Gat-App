@@ -28,7 +28,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
   Future<List<PendingMemberReport>>? _pendingReportFuture;
   Future<List<LoanReportItem>>? _loansReportFuture;
 
-  String _groupName = 'Shivshahi Bachat Gat';
+  String _groupName = 'Chhatrapati Bachat Gat, Ghargaon Stand';
 
   @override
   void initState() {
@@ -147,12 +147,17 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
             debugPrint('[REPORT ERROR] Group stream encountered error: ${snapshot.error}');
           }
 
+          final effectiveName = CalculationUtils.resolveGroupName(snapshot.data?.name, l10n.defaultGroupName);
+          if (_groupName != effectiveName) {
+            _groupName = effectiveName;
+          }
+
           final group = snapshot.data ??
               BachatGatGroup(
                 id: provider.groupId,
                 name: _groupName,
                 managerId: 'manager_001',
-                monthlyTarget: 6000.0,
+                monthlyTarget: 0.0,
                 monthlyContributionAmount: 1000.0,
                 totalFund: 0.0,
                 totalSavings: 0.0,
@@ -161,10 +166,6 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
               );
-
-          if (snapshot.hasData && snapshot.data != null && snapshot.data!.name != _groupName) {
-            _groupName = snapshot.data!.name;
-          }
 
           return TabBarView(
             controller: _tabController,
@@ -202,7 +203,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
           _buildReportItem(context, l10n.totalSavings, group.totalSavings, Icons.savings_rounded, AppColors.success),
           _buildReportItem(context, l10n.totalInterest2Percent, group.totalInterestCollected, Icons.percent_rounded, AppColors.interest),
           _buildReportItem(context, l10n.outstandingPrincipal, group.totalOutstandingLoans, Icons.history_rounded, AppColors.error),
-          _buildReportItem(context, l10n.availableGroupBalance, CalculationUtils.calculateAvailableCash(group.totalFund), Icons.account_balance_wallet_rounded, AppColors.primary),
+          _buildReportItem(context, l10n.availableGroupBalance, group.availableFund, Icons.account_balance_wallet_rounded, AppColors.primary),
 
           const SizedBox(height: 24),
           Row(
@@ -210,7 +211,7 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
             children: [
               Text(l10n.monthlyRegisterBreakdown.toUpperCase(), style: Theme.of(context).textTheme.labelLarge),
               Text(
-                '${l10n.localeName == 'mr' ? CalculationUtils.getMonthNameMarathi(_selectedMonth) : CalculationUtils.getMonthName(_selectedMonth)} $_selectedYear',
+                '${CalculationUtils.getMonthName(_selectedMonth, locale: l10n.localeName)} $_selectedYear',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
               ),
             ],

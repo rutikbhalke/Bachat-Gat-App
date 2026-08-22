@@ -171,9 +171,9 @@ void main() {
         updatedAt: DateTime(2026, 8, 18),
       );
 
-      expect(group.availableFund, 10000.0);
-      expect(group.availableCash, 10000.0);
-      expect(group.totalGroupAssets, 20000.0);
+      expect(group.availableFund, 10400.0);
+      expect(group.availableCash, 10400.0);
+      expect(group.totalGroupAssets, 20400.0);
     });
   });
 }

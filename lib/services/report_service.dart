@@ -105,9 +105,12 @@ class ReportService {
       }
     }
 
-    final paidHafta = contribution != null ? contribution.regularHaftaAmount : 0.0;
-    final expectedHafta = contribution?.expectedAmount ?? member.monthlyContribution;
-    final pendingHafta = (expectedHafta - paidHafta) > 0 ? (expectedHafta - paidHafta) : 0.0;
+    final paidHafta = CalculationUtils.calculateMemberPaidForMonth(contribution);
+    final expectedHafta = CalculationUtils.calculateMemberMonthlyDue(member: member);
+    final pendingHafta = CalculationUtils.calculateMemberPendingHafta(
+      member: member,
+      contribution: contribution,
+    );
 
     return MemberMonthlyReport(
       member: member,

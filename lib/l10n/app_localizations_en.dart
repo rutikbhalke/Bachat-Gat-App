@@ -204,7 +204,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get close => 'Close';
 
   @override
-  String get defaultGroupName => 'Shivshahi Bachat Gat';
+  String get defaultGroupName => 'Chhatrapati Bachat Gat, Ghargaon Stand';
+
+  @override
+  String get monthlyHaftaDueDate => 'Monthly Hafta Due Date';
 
   @override
   String get monthlyPayment => 'Monthly Payment';
@@ -379,4 +382,312 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get principalCannotExceedPending =>
       'Principal repayment cannot exceed pending principal';
+
+  @override
+  String get monthly => 'Monthly';
+
+  @override
+  String get shares => 'Shares';
+
+  @override
+  String get paidStatus => 'Paid';
+
+  @override
+  String get partialStatus => 'Partial';
+
+  @override
+  String get selectMember => 'Select Member';
+
+  @override
+  String get recordMonthlyCollection => 'Record Monthly Collection';
+
+  @override
+  String get searchMembers => 'Search members...';
+
+  @override
+  String get allMembers => 'All Members';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get memberProfile => 'Member Profile';
+
+  @override
+  String get groupMembers => 'Group Members';
+
+  @override
+  String get groupSettingsProfile => 'Group Settings & Profile';
+
+  @override
+  String get groupName => 'Group Name';
+
+  @override
+  String get defaultMonthlyContribution => 'Default Monthly Contribution';
+
+  @override
+  String get collections => 'Collections';
+
+  @override
+  String get ledger => 'Ledger';
+
+  @override
+  String get loanManagement => 'Loan Management';
+
+  @override
+  String get monthlyCollection => 'Monthly Collection';
+
+  @override
+  String get loanRepayment => 'Loan Repayment';
+
+  @override
+  String get loanInterest => 'Loan Interest';
+
+  @override
+  String get totalLoan => 'Total Loan';
+
+  @override
+  String get availableBalance => 'Available Balance';
+
+  @override
+  String get pendingMembers => 'Pending Members';
+
+  @override
+  String get createLoan => 'Create Loan';
+
+  @override
+  String get loanAmount => 'Loan Amount';
+
+  @override
+  String get dueDate => 'Due Date';
+
+  @override
+  String get status => 'Status';
+
+  @override
+  String get activeStatus => 'Active';
+
+  @override
+  String get closedStatus => 'Closed';
+
+  @override
+  String get search => 'Search';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get edit => 'Edit';
+
+  @override
+  String get editMember => 'Edit Member';
+
+  @override
+  String get addMember => 'Add Member';
+
+  @override
+  String get updateMember => 'Update Member';
+
+  @override
+  String get memberName => 'Member Name';
+
+  @override
+  String get mobileNumber => 'Mobile Number';
+
+  @override
+  String get joinedDate => 'Joined Date';
+
+  @override
+  String get defaultContribution => 'Default Contribution';
+
+  @override
+  String get fullName => 'Full Name';
+
+  @override
+  String get phoneNumber => 'Phone Number';
+
+  @override
+  String get sharesCount => 'Shares Count';
+
+  @override
+  String get perShare => 'Per Share';
+
+  @override
+  String get regularHaftaLabel => 'Regular Hafta (₹)';
+
+  @override
+  String get totalPaymentLabel => 'Total Payment:';
+
+  @override
+  String get loanPrincipalRepaymentOptional =>
+      'Loan Principal Repayment (₹) (Optional)';
+
+  @override
+  String get activeLoan => 'Active Loan';
+
+  @override
+  String get interestDue => 'Interest Due';
+
+  @override
+  String get loanAmountLabel => 'Loan Amount (₹)';
+
+  @override
+  String get monthlyInterestRatePercent => 'Monthly Interest Rate (%)';
+
+  @override
+  String get purposeOptional => 'Purpose (optional)';
+
+  @override
+  String get availableForLending => 'Available for Lending';
+
+  @override
+  String get maxAllowed => 'Max allowed';
+
+  @override
+  String get selectActiveLoan => 'Select Active Loan';
+
+  @override
+  String get regularHaftaAmountLabel => 'Regular Hafta Amount (₹)';
+
+  @override
+  String get interestLabel => 'Interest';
+
+  @override
+  String get totalInvested => 'Total Invested';
+
+  @override
+  String get outstandingLoan => 'Outstanding Loan';
+
+  @override
+  String get investmentHistory => 'INVESTMENT HISTORY';
+
+  @override
+  String get current => 'Current';
+
+  @override
+  String get noHistoryFound => 'No history found';
+
+  @override
+  String get joined => 'Joined';
+
+  @override
+  String get groupSummary => 'GROUP SUMMARY';
+
+  @override
+  String get monthlyPerformance => 'MONTHLY PERFORMANCE';
+
+  @override
+  String get savingsGrowthChart => 'Savings Growth Chart';
+
+  @override
+  String get comingInNextUpdate => 'Coming in next update';
+
+  @override
+  String get january => 'January';
+
+  @override
+  String get february => 'February';
+
+  @override
+  String get march => 'March';
+
+  @override
+  String get april => 'April';
+
+  @override
+  String get may => 'May';
+
+  @override
+  String get june => 'June';
+
+  @override
+  String get july => 'July';
+
+  @override
+  String get august => 'August';
+
+  @override
+  String get september => 'September';
+
+  @override
+  String get october => 'October';
+
+  @override
+  String get november => 'November';
+
+  @override
+  String get december => 'December';
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get monthlyCollectionDue => 'Monthly Collection Due';
+
+  @override
+  String get collectionScheduledTenth =>
+      'Monthly savings collection scheduled on the 10th.';
+
+  @override
+  String get interestRule2Percent => '2% Monthly Interest Rule';
+
+  @override
+  String get interestCalculatedAutomatically =>
+      'Interest is calculated automatically on outstanding principal.';
+
+  @override
+  String get gotIt => 'Got it';
+
+  @override
+  String get settingsUpdatedSuccessfully => 'Settings updated successfully';
+
+  @override
+  String get perShareAmount => 'per share';
+
+  @override
+  String get noMembersFound => 'No members found';
+
+  @override
+  String get noPendingMembersMatch => 'No pending members match search';
+
+  @override
+  String get moInterestLabel => '2% Mo. Interest';
+
+  @override
+  String get overdue => 'OVERDUE';
+
+  @override
+  String get due => 'DUE';
+
+  @override
+  String get issued => 'Issued';
+
+  @override
+  String get rate => 'Rate';
+
+  @override
+  String get monthlyInterestLabel => 'Monthly Interest (2%)';
+
+  @override
+  String get failedLoadLedger => 'Failed to load ledger';
+
+  @override
+  String get noLedgerEntries => 'No ledger entries recorded';
+
+  @override
+  String get deactivateMember => 'Deactivate Member';
+
+  @override
+  String deactivateConfirm(Object name) {
+    return 'Are you sure you want to deactivate $name?';
+  }
+
+  @override
+  String get noCollectionHistoryFound => 'No collection history found';
+
+  @override
+  String get noLoansIssuedForMember => 'No loans issued for this member';
 }

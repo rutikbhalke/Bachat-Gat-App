@@ -491,8 +491,14 @@ abstract class AppLocalizations {
   /// No description provided for @defaultGroupName.
   ///
   /// In en, this message translates to:
-  /// **'Shivshahi Bachat Gat'**
+  /// **'Chhatrapati Bachat Gat, Ghargaon Stand'**
   String get defaultGroupName;
+
+  /// No description provided for @monthlyHaftaDueDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Hafta Due Date'**
+  String get monthlyHaftaDueDate;
 
   /// No description provided for @monthlyPayment.
   ///
@@ -835,6 +841,612 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Principal repayment cannot exceed pending principal'**
   String get principalCannotExceedPending;
+
+  /// No description provided for @monthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly'**
+  String get monthly;
+
+  /// No description provided for @shares.
+  ///
+  /// In en, this message translates to:
+  /// **'Shares'**
+  String get shares;
+
+  /// No description provided for @paidStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid'**
+  String get paidStatus;
+
+  /// No description provided for @partialStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Partial'**
+  String get partialStatus;
+
+  /// No description provided for @selectMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Member'**
+  String get selectMember;
+
+  /// No description provided for @recordMonthlyCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Record Monthly Collection'**
+  String get recordMonthlyCollection;
+
+  /// No description provided for @searchMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search members...'**
+  String get searchMembers;
+
+  /// No description provided for @allMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'All Members'**
+  String get allMembers;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @memberProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Member Profile'**
+  String get memberProfile;
+
+  /// No description provided for @groupMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Group Members'**
+  String get groupMembers;
+
+  /// No description provided for @groupSettingsProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Group Settings & Profile'**
+  String get groupSettingsProfile;
+
+  /// No description provided for @groupName.
+  ///
+  /// In en, this message translates to:
+  /// **'Group Name'**
+  String get groupName;
+
+  /// No description provided for @defaultMonthlyContribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Monthly Contribution'**
+  String get defaultMonthlyContribution;
+
+  /// No description provided for @collections.
+  ///
+  /// In en, this message translates to:
+  /// **'Collections'**
+  String get collections;
+
+  /// No description provided for @ledger.
+  ///
+  /// In en, this message translates to:
+  /// **'Ledger'**
+  String get ledger;
+
+  /// No description provided for @loanManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Management'**
+  String get loanManagement;
+
+  /// No description provided for @monthlyCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Collection'**
+  String get monthlyCollection;
+
+  /// No description provided for @loanRepayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Repayment'**
+  String get loanRepayment;
+
+  /// No description provided for @loanInterest.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Interest'**
+  String get loanInterest;
+
+  /// No description provided for @totalLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Loan'**
+  String get totalLoan;
+
+  /// No description provided for @availableBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Available Balance'**
+  String get availableBalance;
+
+  /// No description provided for @pendingMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending Members'**
+  String get pendingMembers;
+
+  /// No description provided for @createLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Loan'**
+  String get createLoan;
+
+  /// No description provided for @loanAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Amount'**
+  String get loanAmount;
+
+  /// No description provided for @dueDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Due Date'**
+  String get dueDate;
+
+  /// No description provided for @status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get status;
+
+  /// No description provided for @activeStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get activeStatus;
+
+  /// No description provided for @closedStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Closed'**
+  String get closedStatus;
+
+  /// No description provided for @search.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get search;
+
+  /// No description provided for @refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refresh;
+
+  /// No description provided for @delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
+  /// No description provided for @edit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get edit;
+
+  /// No description provided for @editMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Member'**
+  String get editMember;
+
+  /// No description provided for @addMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Member'**
+  String get addMember;
+
+  /// No description provided for @updateMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Member'**
+  String get updateMember;
+
+  /// No description provided for @memberName.
+  ///
+  /// In en, this message translates to:
+  /// **'Member Name'**
+  String get memberName;
+
+  /// No description provided for @mobileNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile Number'**
+  String get mobileNumber;
+
+  /// No description provided for @joinedDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined Date'**
+  String get joinedDate;
+
+  /// No description provided for @defaultContribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Contribution'**
+  String get defaultContribution;
+
+  /// No description provided for @fullName.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Name'**
+  String get fullName;
+
+  /// No description provided for @phoneNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone Number'**
+  String get phoneNumber;
+
+  /// No description provided for @sharesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Shares Count'**
+  String get sharesCount;
+
+  /// No description provided for @perShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Per Share'**
+  String get perShare;
+
+  /// No description provided for @regularHaftaLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular Hafta (₹)'**
+  String get regularHaftaLabel;
+
+  /// No description provided for @totalPaymentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Payment:'**
+  String get totalPaymentLabel;
+
+  /// No description provided for @loanPrincipalRepaymentOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Principal Repayment (₹) (Optional)'**
+  String get loanPrincipalRepaymentOptional;
+
+  /// No description provided for @activeLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Active Loan'**
+  String get activeLoan;
+
+  /// No description provided for @interestDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Interest Due'**
+  String get interestDue;
+
+  /// No description provided for @loanAmountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Loan Amount (₹)'**
+  String get loanAmountLabel;
+
+  /// No description provided for @monthlyInterestRatePercent.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Interest Rate (%)'**
+  String get monthlyInterestRatePercent;
+
+  /// No description provided for @purposeOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Purpose (optional)'**
+  String get purposeOptional;
+
+  /// No description provided for @availableForLending.
+  ///
+  /// In en, this message translates to:
+  /// **'Available for Lending'**
+  String get availableForLending;
+
+  /// No description provided for @maxAllowed.
+  ///
+  /// In en, this message translates to:
+  /// **'Max allowed'**
+  String get maxAllowed;
+
+  /// No description provided for @selectActiveLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Active Loan'**
+  String get selectActiveLoan;
+
+  /// No description provided for @regularHaftaAmountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular Hafta Amount (₹)'**
+  String get regularHaftaAmountLabel;
+
+  /// No description provided for @interestLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Interest'**
+  String get interestLabel;
+
+  /// No description provided for @totalInvested.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Invested'**
+  String get totalInvested;
+
+  /// No description provided for @outstandingLoan.
+  ///
+  /// In en, this message translates to:
+  /// **'Outstanding Loan'**
+  String get outstandingLoan;
+
+  /// No description provided for @investmentHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'INVESTMENT HISTORY'**
+  String get investmentHistory;
+
+  /// No description provided for @current.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get current;
+
+  /// No description provided for @noHistoryFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No history found'**
+  String get noHistoryFound;
+
+  /// No description provided for @joined.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined'**
+  String get joined;
+
+  /// No description provided for @groupSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'GROUP SUMMARY'**
+  String get groupSummary;
+
+  /// No description provided for @monthlyPerformance.
+  ///
+  /// In en, this message translates to:
+  /// **'MONTHLY PERFORMANCE'**
+  String get monthlyPerformance;
+
+  /// No description provided for @savingsGrowthChart.
+  ///
+  /// In en, this message translates to:
+  /// **'Savings Growth Chart'**
+  String get savingsGrowthChart;
+
+  /// No description provided for @comingInNextUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming in next update'**
+  String get comingInNextUpdate;
+
+  /// No description provided for @january.
+  ///
+  /// In en, this message translates to:
+  /// **'January'**
+  String get january;
+
+  /// No description provided for @february.
+  ///
+  /// In en, this message translates to:
+  /// **'February'**
+  String get february;
+
+  /// No description provided for @march.
+  ///
+  /// In en, this message translates to:
+  /// **'March'**
+  String get march;
+
+  /// No description provided for @april.
+  ///
+  /// In en, this message translates to:
+  /// **'April'**
+  String get april;
+
+  /// No description provided for @may.
+  ///
+  /// In en, this message translates to:
+  /// **'May'**
+  String get may;
+
+  /// No description provided for @june.
+  ///
+  /// In en, this message translates to:
+  /// **'June'**
+  String get june;
+
+  /// No description provided for @july.
+  ///
+  /// In en, this message translates to:
+  /// **'July'**
+  String get july;
+
+  /// No description provided for @august.
+  ///
+  /// In en, this message translates to:
+  /// **'August'**
+  String get august;
+
+  /// No description provided for @september.
+  ///
+  /// In en, this message translates to:
+  /// **'September'**
+  String get september;
+
+  /// No description provided for @october.
+  ///
+  /// In en, this message translates to:
+  /// **'October'**
+  String get october;
+
+  /// No description provided for @november.
+  ///
+  /// In en, this message translates to:
+  /// **'November'**
+  String get november;
+
+  /// No description provided for @december.
+  ///
+  /// In en, this message translates to:
+  /// **'December'**
+  String get december;
+
+  /// No description provided for @notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notifications;
+
+  /// No description provided for @monthlyCollectionDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Collection Due'**
+  String get monthlyCollectionDue;
+
+  /// No description provided for @collectionScheduledTenth.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly savings collection scheduled on the 10th.'**
+  String get collectionScheduledTenth;
+
+  /// No description provided for @interestRule2Percent.
+  ///
+  /// In en, this message translates to:
+  /// **'2% Monthly Interest Rule'**
+  String get interestRule2Percent;
+
+  /// No description provided for @interestCalculatedAutomatically.
+  ///
+  /// In en, this message translates to:
+  /// **'Interest is calculated automatically on outstanding principal.'**
+  String get interestCalculatedAutomatically;
+
+  /// No description provided for @gotIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get gotIt;
+
+  /// No description provided for @settingsUpdatedSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings updated successfully'**
+  String get settingsUpdatedSuccessfully;
+
+  /// No description provided for @perShareAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'per share'**
+  String get perShareAmount;
+
+  /// No description provided for @noMembersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No members found'**
+  String get noMembersFound;
+
+  /// No description provided for @noPendingMembersMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending members match search'**
+  String get noPendingMembersMatch;
+
+  /// No description provided for @moInterestLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'2% Mo. Interest'**
+  String get moInterestLabel;
+
+  /// No description provided for @overdue.
+  ///
+  /// In en, this message translates to:
+  /// **'OVERDUE'**
+  String get overdue;
+
+  /// No description provided for @due.
+  ///
+  /// In en, this message translates to:
+  /// **'DUE'**
+  String get due;
+
+  /// No description provided for @issued.
+  ///
+  /// In en, this message translates to:
+  /// **'Issued'**
+  String get issued;
+
+  /// No description provided for @rate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate'**
+  String get rate;
+
+  /// No description provided for @monthlyInterestLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly Interest (2%)'**
+  String get monthlyInterestLabel;
+
+  /// No description provided for @failedLoadLedger.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load ledger'**
+  String get failedLoadLedger;
+
+  /// No description provided for @noLedgerEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'No ledger entries recorded'**
+  String get noLedgerEntries;
+
+  /// No description provided for @deactivateMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivate Member'**
+  String get deactivateMember;
+
+  /// No description provided for @deactivateConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to deactivate {name}?'**
+  String deactivateConfirm(Object name);
+
+  /// No description provided for @noCollectionHistoryFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No collection history found'**
+  String get noCollectionHistoryFound;
+
+  /// No description provided for @noLoansIssuedForMember.
+  ///
+  /// In en, this message translates to:
+  /// **'No loans issued for this member'**
+  String get noLoansIssuedForMember;
 }
 
 class _AppLocalizationsDelegate
