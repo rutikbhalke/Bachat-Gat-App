@@ -12,7 +12,7 @@ class TransactionRepository {
   TransactionRepository(this._firebaseService);
 
   Stream<List<MonthlyContribution>> watchContributions(String groupId, {String? memberId}) {
-    Query query = _firebaseService.monthlyContributions(groupId);
+    Query query = _firebaseService.monthlyContributionsByGroup(groupId);
     if (memberId != null) {
       query = query.where('memberId', isEqualTo: memberId);
     }
@@ -23,7 +23,7 @@ class TransactionRepository {
 
   Future<List<MonthlyContribution>> getContributions(String groupId, {String? memberId, int? month, int? year}) async {
     return PerfLogger.traceAsync('getContributions($groupId, memberId=$memberId, $month/$year)', () async {
-      Query query = _firebaseService.monthlyContributions(groupId);
+      Query query = _firebaseService.monthlyContributionsByGroup(groupId);
       if (memberId != null) {
         query = query.where('memberId', isEqualTo: memberId);
       }
@@ -39,7 +39,7 @@ class TransactionRepository {
   }
 
   Stream<List<Loan>> watchLoans(String groupId, {String? memberId}) {
-    Query query = _firebaseService.loans(groupId);
+    Query query = _firebaseService.loansByGroup(groupId);
     if (memberId != null) {
       query = query.where('memberId', isEqualTo: memberId);
     }
@@ -50,7 +50,7 @@ class TransactionRepository {
 
   Future<List<Loan>> getLoans(String groupId, {String? memberId, LoanStatus? status}) async {
     return PerfLogger.traceAsync('getLoans($groupId, memberId=$memberId, status=$status)', () async {
-      Query query = _firebaseService.loans(groupId);
+      Query query = _firebaseService.loansByGroup(groupId);
       if (memberId != null) {
         query = query.where('memberId', isEqualTo: memberId);
       }
@@ -142,7 +142,7 @@ class TransactionRepository {
           month: contribution.month,
           year: contribution.year,
         );
-        final contributionRef = _firebaseService.monthlyContributions(groupId).doc(docId);
+        final contributionRef = _firebaseService.monthlyContributions.doc(docId);
         final existingContribDoc = await transaction.get(contributionRef);
         
         MonthlyContribution toSave;
@@ -203,7 +203,7 @@ class TransactionRepository {
 
         // 2. Record Loan Repayment if applicable
         if (loan != null && repayment != null) {
-          final loanRef = _firebaseService.loans(groupId).doc(loan.id);
+          final loanRef = _firebaseService.loans.doc(loan.id);
           final loanDoc = await transaction.get(loanRef);
           if (!loanDoc.exists) {
             throw Exception('Loan ${loan.id} does not exist.');
@@ -214,20 +214,21 @@ class TransactionRepository {
             throw Exception('Principal repayment (₹$incPrincipal) cannot exceed outstanding loan (₹${currentLoan.pendingPrincipal}).');
           }
 
-          final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repayment.id);
+          final repaymentRef = _firebaseService.repayments.doc(repayment.id);
           transaction.set(repaymentRef, repayment.toJson());
 
           final newPending = currentLoan.pendingPrincipal - incPrincipal;
           final validNewPending = newPending > 0 ? newPending : 0.0;
           transaction.update(loanRef, {
             'pendingPrincipal': validNewPending,
-            'status': validNewPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
+            'remainingAmount': validNewPending,
+            'status': validNewPending <= 0 ? 'CLOSED' : 'ACTIVE',
             'updatedAt': DateTime.now().toIso8601String(),
           });
         }
 
         // 3. Record Activity
-        final activityRef = _firebaseService.activities(groupId).doc(tx.id);
+        final activityRef = _firebaseService.transactions.doc(tx.id);
         transaction.set(activityRef, tx.toJson());
 
         // 4. Update Group totals
@@ -275,8 +276,8 @@ class TransactionRepository {
           throw Exception('Insufficient available balance for this loan.');
         }
 
-        transaction.set(_firebaseService.loans(groupId).doc(sanitizedLoan.id), sanitizedLoan.toJson());
-        transaction.set(_firebaseService.activities(groupId).doc(tx.id), tx.toJson());
+        transaction.set(_firebaseService.loans.doc(sanitizedLoan.id), sanitizedLoan.toJson());
+        transaction.set(_firebaseService.transactions.doc(tx.id), tx.toJson());
         
         // Update group totals atomically
         transaction.update(groupRef, {
@@ -304,7 +305,7 @@ class TransactionRepository {
       }
 
       await _firebaseService.firestore.runTransaction((transaction) async {
-        final loanRef = _firebaseService.loans(groupId).doc(loan.id);
+        final loanRef = _firebaseService.loans.doc(loan.id);
         final loanDoc = await transaction.get(loanRef);
         if (!loanDoc.exists) {
           throw Exception('Loan ${loan.id} does not exist.');
@@ -322,7 +323,7 @@ class TransactionRepository {
         // Use deterministic ID: R_loanId_year_month
         final periodSuffix = '${repayment.year}_${repayment.month.toString().padLeft(2, '0')}';
         final repaymentDocId = 'R_${loan.id}_$periodSuffix';
-        final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repaymentDocId);
+        final repaymentRef = _firebaseService.repayments.doc(repaymentDocId);
         final existingRepaymentDoc = await transaction.get(repaymentRef);
 
         LoanRepayment toSaveRepayment = repayment.copyWith(id: repaymentDocId);
@@ -358,7 +359,7 @@ class TransactionRepository {
             month: repayment.month,
             year: repayment.year,
           );
-          final contributionRef = _firebaseService.monthlyContributions(groupId).doc(docId);
+          final contributionRef = _firebaseService.monthlyContributions.doc(docId);
           final existingContribDoc = await transaction.get(contributionRef);
 
           if (existingContribDoc.exists) {
@@ -397,7 +398,7 @@ class TransactionRepository {
         }
         
         // 3. Record the activity
-        final activityRef = _firebaseService.activities(groupId).doc(tx.id);
+        final activityRef = _firebaseService.transactions.doc(tx.id);
         transaction.set(activityRef, tx.toJson());
         
         // 4. Update Loan pending balance
@@ -405,7 +406,8 @@ class TransactionRepository {
         final validNewPending = newPending > 0 ? newPending : 0.0;
         transaction.update(loanRef, {
           'pendingPrincipal': validNewPending,
-          'status': validNewPending <= 0 ? LoanStatus.closed.name : LoanStatus.active.name,
+          'remainingAmount': validNewPending,
+          'status': validNewPending <= 0 ? 'CLOSED' : 'ACTIVE',
           'updatedAt': DateTime.now().toIso8601String(),
         });
 
@@ -429,7 +431,7 @@ class TransactionRepository {
   }) async {
     return PerfLogger.traceAsync('reverseContribution($contributionId)', () async {
       await _firebaseService.firestore.runTransaction((transaction) async {
-        final contribRef = _firebaseService.monthlyContributions(groupId).doc(contributionId);
+        final contribRef = _firebaseService.monthlyContributions.doc(contributionId);
         final contribDoc = await transaction.get(contribRef);
         if (!contribDoc.exists) return;
 
@@ -440,7 +442,7 @@ class TransactionRepository {
         double interestToRemove = 0.0;
 
         if (repaymentId != null && loanId != null) {
-          final repaymentRef = _firebaseService.loanRepayments(groupId).doc(repaymentId);
+          final repaymentRef = _firebaseService.repayments.doc(repaymentId);
           final repaymentDoc = await transaction.get(repaymentRef);
           if (repaymentDoc.exists) {
             final repayment = LoanRepayment.fromJson(repaymentDoc.data() as Map<String, dynamic>);
@@ -448,14 +450,15 @@ class TransactionRepository {
             interestToRemove = repayment.interestAmount;
             transaction.delete(repaymentRef);
 
-            final loanRef = _firebaseService.loans(groupId).doc(loanId);
+            final loanRef = _firebaseService.loans.doc(loanId);
             final loanDoc = await transaction.get(loanRef);
             if (loanDoc.exists) {
               final loan = Loan.fromJson(loanDoc.data() as Map<String, dynamic>);
               final restoredPending = loan.pendingPrincipal + principalToRestore;
               transaction.update(loanRef, {
                 'pendingPrincipal': restoredPending,
-                'status': restoredPending > 0 ? LoanStatus.active.name : LoanStatus.closed.name,
+                'remainingAmount': restoredPending,
+                'status': restoredPending > 0 ? 'ACTIVE' : 'CLOSED',
                 'updatedAt': DateTime.now().toIso8601String(),
               });
             }
@@ -484,7 +487,7 @@ class TransactionRepository {
           description: 'Reversed payment for ${contrib.month}/${contrib.year}',
           referenceId: contributionId,
         );
-        transaction.set(_firebaseService.activities(groupId).doc(revTx.id), revTx.toJson());
+        transaction.set(_firebaseService.transactions.doc(revTx.id), revTx.toJson());
       });
     });
   }

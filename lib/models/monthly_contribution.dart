@@ -45,40 +45,51 @@ class MonthlyContribution {
   }
   double get pendingAmount => remainingAmount;
 
-  /// Returns only the regular savings/hafta portion actually paid for this monthly obligation.
+  /// Returns the regular savings/hafta portion actually paid for this monthly contribution obligation.
+  /// Strictly represents the member's savings deposit (e.g. ₹1,000).
+  /// Loan principal repayments and interest belong to the loan/repayment module and are never deducted from savings.
   double get actualRegularPaid {
-    // If interest or principal are explicitly tracked as non-zero on this record,
-    // we must ensure they are not part of the 'paidAmount' if 'paidAmount' was
-    // recorded as the total payment (legacy behavior).
-    if (interestAmount > 0 || loanPrincipalPaid > 0) {
-      // If paidAmount matches totalPaid, it likely includes interest/principal
-      if ((paidAmount - totalPaid).abs() < 0.01) {
-        final regular = totalPaid - interestAmount - loanPrincipalPaid;
-        return regular > 0 ? (regular > expectedAmount ? expectedAmount : regular) : 0.0;
+    if (paidAmount > 0) {
+      if ((interestAmount > 0 || loanPrincipalPaid > 0) && regularHaftaAmount > 0 && paidAmount > regularHaftaAmount) {
+        final regular = paidAmount - interestAmount - loanPrincipalPaid;
+        return regular > 0 ? (regular > regularHaftaAmount ? regularHaftaAmount : regular) : 0.0;
       }
+      return (regularHaftaAmount > 0 && paidAmount > regularHaftaAmount) ? regularHaftaAmount : paidAmount;
     }
-    // Otherwise trust paidAmount but clamp to expected
-    return paidAmount > expectedAmount ? expectedAmount : paidAmount;
+    if (status == ContributionStatus.paid) {
+      return regularHaftaAmount > 0 ? regularHaftaAmount : (expectedAmount > 0 ? expectedAmount : 1000.0);
+    }
+    return 0.0;
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'memberId': memberId,
-        'groupId': groupId,
-        'month': month,
-        'year': year,
-        'regularHaftaAmount': regularHaftaAmount,
-        'interestAmount': interestAmount,
-        'loanPrincipalPaid': loanPrincipalPaid,
-        'totalPaid': totalPaid,
-        'expectedAmount': expectedAmount,
-        'paidAmount': paidAmount,
-        'paymentDate': paymentDate?.toIso8601String(),
-        'status': status.name,
-        'notes': notes,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+  Map<String, dynamic> toJson() {
+    final statusStr = status == ContributionStatus.paid
+        ? 'PAID'
+        : (status == ContributionStatus.partial ? 'PARTIAL' : (status == ContributionStatus.waived ? 'WAIVED' : 'PENDING'));
+
+    return {
+      'id': id,
+      'memberId': memberId,
+      'groupId': groupId,
+      'month': month,
+      'year': year,
+      'amount': paidAmount > 0 ? paidAmount : (expectedAmount > 0 ? expectedAmount : regularHaftaAmount),
+      'regularHaftaAmount': regularHaftaAmount,
+      'interestAmount': interestAmount,
+      'loanPrincipalPaid': loanPrincipalPaid,
+      'totalPaid': totalPaid,
+      'expectedAmount': expectedAmount,
+      'paidAmount': paidAmount,
+      'paidAt': paymentDate?.toIso8601String(),
+      'paymentDate': paymentDate?.toIso8601String(),
+      'status': statusStr,
+      'notes': notes,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  Map<String, dynamic> toFirestore() => toJson();
 
   MonthlyContribution copyWith({
     String? id,
@@ -119,30 +130,62 @@ class MonthlyContribution {
   }
 
   factory MonthlyContribution.fromJson(Map<String, dynamic> json) {
-    final regular = (json['regularHaftaAmount'] ?? json['expectedAmount'] ?? 0.0) as num;
+    final now = DateTime.now();
+
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is DateTime) return value;
+      if (value.runtimeType.toString().contains('Timestamp')) {
+        try {
+          return (value as dynamic).toDate() as DateTime;
+        } catch (_) {}
+      }
+      if (value is String && value.isNotEmpty) {
+        return DateTime.tryParse(value);
+      }
+      return null;
+    }
+
+    final rawAmount = (json['amount'] ?? json['paidAmount'] ?? json['expectedAmount'] ?? json['regularHaftaAmount'] ?? 0.0) as num;
+    final regular = (json['regularHaftaAmount'] ?? json['expectedAmount'] ?? rawAmount) as num;
     final interest = (json['interestAmount'] ?? 0.0) as num;
     final principal = (json['loanPrincipalPaid'] ?? 0.0) as num;
     final total = (json['totalPaid'] ?? json['paidAmount'] ?? (regular + interest + principal)) as num;
     final expected = (json['expectedAmount'] ?? regular) as num;
-    final paid = (json['paidAmount'] ?? total) as num;
+    final paid = (json['paidAmount'] ?? (json['status']?.toString().toUpperCase() == 'PAID' ? rawAmount : 0.0)) as num;
+
+    ContributionStatus parseStatus(dynamic value) {
+      if (value == null) return ContributionStatus.pending;
+      final str = value.toString().toUpperCase().trim();
+      if (str == 'PAID') return ContributionStatus.paid;
+      if (str == 'PARTIAL') return ContributionStatus.partial;
+      if (str == 'WAIVED') return ContributionStatus.waived;
+      if (str == 'PENDING' || str == 'DUE' || str == 'UNPAID') return ContributionStatus.pending;
+      for (final s in ContributionStatus.values) {
+        if (s.name.toUpperCase() == str) return s;
+      }
+      return ContributionStatus.pending;
+    }
+
+    final paymentDt = parseDate(json['paidAt']) ?? parseDate(json['paymentDate']);
 
     return MonthlyContribution(
-      id: json['id'],
-      memberId: json['memberId'],
-      groupId: json['groupId'] ?? '',
-      month: json['month'],
-      year: json['year'],
+      id: json['id']?.toString() ?? '',
+      memberId: json['memberId']?.toString() ?? '',
+      groupId: json['groupId']?.toString() ?? '',
+      month: (json['month'] as num?)?.toInt() ?? now.month,
+      year: (json['year'] as num?)?.toInt() ?? now.year,
       regularHaftaAmount: regular.toDouble(),
       interestAmount: interest.toDouble(),
       loanPrincipalPaid: principal.toDouble(),
       totalPaid: total.toDouble(),
       expectedAmount: expected.toDouble(),
       paidAmount: paid.toDouble(),
-      paymentDate: json['paymentDate'] != null ? DateTime.parse(json['paymentDate']) : null,
-      status: ContributionStatus.values.byName(json['status']),
-      notes: json['notes'],
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      paymentDate: paymentDt,
+      status: parseStatus(json['status']),
+      notes: json['notes']?.toString(),
+      createdAt: parseDate(json['createdAt']) ?? now,
+      updatedAt: parseDate(json['updatedAt']) ?? now,
     );
   }
 

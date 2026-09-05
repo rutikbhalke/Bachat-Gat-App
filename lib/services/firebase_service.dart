@@ -31,28 +31,46 @@ class FirebaseService {
     }
   }
 
-  // Collection References
+  // ---------------------------------------------------------------------------
+  // ROOT COLLECTIONS (Exact Web Database Structure)
+  // ---------------------------------------------------------------------------
   CollectionReference get groups => firestore.collection('groups');
+  CollectionReference get users => firestore.collection('users');
+  CollectionReference get monthlyContributions => firestore.collection('monthlyContributions');
+  CollectionReference get loans => firestore.collection('loans');
+  CollectionReference get repayments => firestore.collection('repayments');
+  CollectionReference get transactions => firestore.collection('transactions');
 
-  // Helper to get group-specific sub-collections
-  CollectionReference members(String groupId) => 
-      groups.doc(groupId).collection('members');
-  
-  CollectionReference monthlyContributions(String groupId) => 
-      groups.doc(groupId).collection('monthly_contributions');
+  // ---------------------------------------------------------------------------
+  // DOCUMENT REFERENCES
+  // ---------------------------------------------------------------------------
+  DocumentReference groupDoc(String groupId) => groups.doc(groupId);
+  DocumentReference userDoc(String uid) => users.doc(uid);
+  DocumentReference contributionDoc(String id) => monthlyContributions.doc(id);
+  DocumentReference loanDoc(String id) => loans.doc(id);
+  DocumentReference repaymentDoc(String id) => repayments.doc(id);
+  DocumentReference transactionDoc(String id) => transactions.doc(id);
 
-  // Alias for backward compatibility
-  CollectionReference savings(String groupId) => monthlyContributions(groupId);
-  
-  CollectionReference loans(String groupId) => 
-      groups.doc(groupId).collection('loans');
-  
-  CollectionReference loanRepayments(String groupId) => 
-      groups.doc(groupId).collection('loan_repayments');
+  // ---------------------------------------------------------------------------
+  // GROUP-SCOPED QUERY HELPERS
+  // ---------------------------------------------------------------------------
+  Query members(String groupId) =>
+      users.where('groupId', isEqualTo: groupId);
 
-  // Alias for backward compatibility
-  CollectionReference repayments(String groupId) => loanRepayments(groupId);
-  
-  CollectionReference activities(String groupId) => 
-      groups.doc(groupId).collection('activities');
+  Query monthlyContributionsByGroup(String groupId) =>
+      monthlyContributions.where('groupId', isEqualTo: groupId);
+
+  Query loansByGroup(String groupId) =>
+      loans.where('groupId', isEqualTo: groupId);
+
+  Query repaymentsByGroup(String groupId) =>
+      repayments.where('groupId', isEqualTo: groupId);
+
+  Query activities(String groupId) =>
+      transactions.where('groupId', isEqualTo: groupId);
+
+  // Compatibility aliases
+  Query loanRepayments(String groupId) => repaymentsByGroup(groupId);
+  Query savings(String groupId) => monthlyContributionsByGroup(groupId);
 }
+

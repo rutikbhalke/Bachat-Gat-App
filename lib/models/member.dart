@@ -5,6 +5,9 @@ class Member {
   final String groupId;
   final String name;
   final String phone;
+  final String email;
+  final String role;
+  final String memberCode;
   final DateTime joinDate;
 
   /// Number of shares owned by the member.
@@ -30,6 +33,9 @@ class Member {
     required this.groupId,
     required this.name,
     required this.phone,
+    this.email = '',
+    this.role = 'MEMBER',
+    this.memberCode = '',
     required this.joinDate,
     int? shares,
     double? monthlyContributionPerShare,
@@ -52,6 +58,10 @@ class Member {
           ),
         );
 
+  String get uid => id;
+  String get fullName => name;
+  double get monthlyShare => monthlyContribution;
+
   // ---------------------------------------------------------------------------
   // NORMALIZATION / CALCULATION
   // ---------------------------------------------------------------------------
@@ -69,23 +79,14 @@ class Member {
     double? perShare,
     double? totalMonthly,
   }) {
-    // If per-share amount is explicitly supplied, use it.
-    if (perShare != null &&
-        perShare.isFinite &&
-        perShare >= 0) {
+    if (perShare != null && perShare.isFinite && perShare >= 0) {
       return perShare;
     }
 
-    // If only total monthly amount is supplied,
-    // derive per-share amount from it.
-    if (totalMonthly != null &&
-        totalMonthly.isFinite &&
-        totalMonthly >= 0) {
+    if (totalMonthly != null && totalMonthly.isFinite && totalMonthly >= 0) {
       return totalMonthly / shares;
     }
 
-    // Default:
-    // 1 share = ₹1000 per month.
     return defaultMonthlyContributionPerShare;
   }
 
@@ -94,11 +95,9 @@ class Member {
     required double perShare,
   }) {
     final total = shares * perShare;
-
     if (!total.isFinite || total < 0) {
       return 0.0;
     }
-
     return total;
   }
 
@@ -107,177 +106,124 @@ class Member {
   // ---------------------------------------------------------------------------
 
   int get shareCount => shares;
-
   double get monthlyHaftaAmount => monthlyContribution;
-
   double get totalMonthlyHafta => monthlyContribution;
-
   double get perShareHafta => monthlyContributionPerShare;
 
   // ---------------------------------------------------------------------------
-  // JSON
+  // JSON / FIRESTORE
   // ---------------------------------------------------------------------------
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'uid': id,
       'groupId': groupId,
       'name': name,
+      'fullName': name,
       'phone': phone,
-
+      'email': email,
+      'role': role,
+      'memberCode': memberCode.isNotEmpty ? memberCode : id,
       'joinDate': joinDate.toIso8601String(),
-
-      // Share information
       'shares': shares,
       'shareCount': shares,
-
-      // Per-share monthly amount
-      'monthlyContributionPerShare':
-      monthlyContributionPerShare,
-
-      // Total monthly hafta
-      'monthlyContribution':
-      monthlyContribution,
-
-      // Backward-compatible field
-      'monthlyHaftaAmount':
-      monthlyContribution,
-
-      'status': status.name,
-
+      'monthlyShare': monthlyContribution,
+      'monthlyContributionPerShare': monthlyContributionPerShare,
+      'monthlyContribution': monthlyContribution,
+      'monthlyHaftaAmount': monthlyContribution,
+      'status': status == MemberStatus.active ? 'ACTIVE' : 'INACTIVE',
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
+
+  Map<String, dynamic> toFirestore() => toJson();
 
   // ---------------------------------------------------------------------------
   // FROM JSON
   // ---------------------------------------------------------------------------
 
   factory Member.fromJson(Map<String, dynamic> json) {
-    // -------------------------------------------------------------------------
-    // SHARES
-    // -------------------------------------------------------------------------
-
-    final dynamic rawShares =
-        json['shares'] ?? json['shareCount'];
-
+    final dynamic rawShares = json['shares'] ?? json['shareCount'];
     int parsedShares = 1;
-
     if (rawShares is num) {
       parsedShares = rawShares.toInt();
     } else if (rawShares is String) {
       parsedShares = int.tryParse(rawShares) ?? 1;
     }
+    if (parsedShares < 1) parsedShares = 1;
 
-    if (parsedShares < 1) {
-      parsedShares = 1;
-    }
-
-    // -------------------------------------------------------------------------
-    // PER-SHARE AMOUNT
-    // -------------------------------------------------------------------------
-
-    final dynamic rawPerShare =
-    json['monthlyContributionPerShare'];
-
+    final dynamic rawPerShare = json['monthlyContributionPerShare'];
     double? parsedPerShare;
-
     if (rawPerShare is num) {
       parsedPerShare = rawPerShare.toDouble();
     } else if (rawPerShare is String) {
       parsedPerShare = double.tryParse(rawPerShare);
     }
 
-    // -------------------------------------------------------------------------
-    // TOTAL MONTHLY AMOUNT
-    // -------------------------------------------------------------------------
-
-    final dynamic rawMonthly =
-        json['monthlyHaftaAmount'] ??
-            json['monthlyContribution'];
-
+    final dynamic rawMonthly = json['monthlyShare'] ?? json['monthlyHaftaAmount'] ?? json['monthlyContribution'];
     double? parsedMonthly;
-
     if (rawMonthly is num) {
       parsedMonthly = rawMonthly.toDouble();
     } else if (rawMonthly is String) {
       parsedMonthly = double.tryParse(rawMonthly);
     }
 
-    // -------------------------------------------------------------------------
-    // CALCULATE PER SHARE
-    // -------------------------------------------------------------------------
-
     final double finalPerShare;
-
-    if (parsedPerShare != null &&
-        parsedPerShare.isFinite &&
-        parsedPerShare >= 0) {
-      // Preferred source.
+    if (parsedPerShare != null && parsedPerShare.isFinite && parsedPerShare >= 0) {
       finalPerShare = parsedPerShare;
-    } else if (parsedMonthly != null &&
-        parsedMonthly.isFinite &&
-        parsedMonthly >= 0) {
-      // Legacy data:
-      // derive per-share amount.
+    } else if (parsedMonthly != null && parsedMonthly.isFinite && parsedMonthly >= 0) {
       finalPerShare = parsedMonthly / parsedShares;
     } else {
-      // New/default member:
-      // ₹1000 per share.
-      finalPerShare =
-          defaultMonthlyContributionPerShare;
+      finalPerShare = defaultMonthlyContributionPerShare;
     }
 
-    // -------------------------------------------------------------------------
-    // ALWAYS CALCULATE TOTAL FROM SHARES
-    // -------------------------------------------------------------------------
-
-    final double finalMonthly =
-    _calculateTotal(
+    final double finalMonthly = _calculateTotal(
       shares: parsedShares,
       perShare: finalPerShare,
     );
 
-    // -------------------------------------------------------------------------
-    // DATES
-    // -------------------------------------------------------------------------
-
     final now = DateTime.now();
-
     DateTime parseDate(dynamic value) {
+      if (value == null) return now;
+      if (value is DateTime) return value;
+      if (value.runtimeType.toString().contains('Timestamp')) {
+        try {
+          return (value as dynamic).toDate() as DateTime;
+        } catch (_) {}
+      }
       if (value is String && value.isNotEmpty) {
         return DateTime.tryParse(value) ?? now;
       }
-
       return now;
     }
 
-    // -------------------------------------------------------------------------
-    // STATUS
-    // -------------------------------------------------------------------------
-
     MemberStatus parseStatus(dynamic value) {
       if (value is String) {
-        for (final status in MemberStatus.values) {
-          if (status.name == value) {
-            return status;
-          }
+        final lower = value.toLowerCase().trim();
+        if (lower == 'inactive' || lower == 'in_active') {
+          return MemberStatus.inactive;
         }
       }
-
       return MemberStatus.active;
     }
 
-    // -------------------------------------------------------------------------
-    // CREATE MEMBER
-    // -------------------------------------------------------------------------
+    final id = json['uid']?.toString() ?? json['id']?.toString() ?? '';
+    final name = json['fullName']?.toString() ?? json['name']?.toString() ?? '';
+    final phone = json['phone']?.toString() ?? '';
+    final email = json['email']?.toString() ?? '';
+    final role = json['role']?.toString() ?? 'MEMBER';
+    final memberCode = json['memberCode']?.toString() ?? id;
 
     return Member(
-      id: json['id']?.toString() ?? '',
+      id: id,
       groupId: json['groupId']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      phone: json['phone']?.toString() ?? '',
+      name: name,
+      phone: phone,
+      email: email,
+      role: role,
+      memberCode: memberCode,
 
       joinDate: parseDate(json['joinDate']),
 

@@ -93,7 +93,7 @@ class GroupRepository {
       }
 
       // 1. Inspect and repair all loans in groups/{groupId}/loans
-      final loansSnapshot = await _firebaseService.loans(groupId).get();
+      final loansSnapshot = await _firebaseService.loansByGroup(groupId).get();
       double trueOutstandingLoans = 0.0;
 
       for (final doc in loansSnapshot.docs) {
@@ -193,7 +193,7 @@ class GroupRepository {
         membersMap[m.id] = m;
       }
 
-      final contribsSnapshot = await _firebaseService.monthlyContributions(groupId).get();
+      final contribsSnapshot = await _firebaseService.monthlyContributionsByGroup(groupId).get();
       double trueTotalSavings = 0.0;
 
       for (final doc in contribsSnapshot.docs) {
@@ -241,11 +241,7 @@ class GroupRepository {
 
         final effectiveExpected = memberDue;
         final effectivePaid = rawPaid >= 0 ? rawPaid : 0.0;
-
-        final regularPaid = (rawInterest > 0 || rawPrincipal > 0)
-            ? (effectivePaid - rawInterest - rawPrincipal > 0 ? effectivePaid - rawInterest - rawPrincipal : 0.0)
-            : effectivePaid;
-        final validRegularPaid = regularPaid > effectiveExpected ? effectiveExpected : regularPaid;
+        final validRegularPaid = effectivePaid > effectiveExpected ? effectiveExpected : effectivePaid;
 
         String effectiveStatus = rawStatus;
         if (validRegularPaid >= effectiveExpected && effectiveExpected > 0) {
@@ -398,7 +394,7 @@ class GroupRepository {
   Future<void> resetAllFinancialData(String groupId) async {
     return PerfLogger.traceAsync('resetAllFinancialData($groupId)', () async {
       // 1. Delete all monthly contributions
-      final contribsSnapshot = await _firebaseService.monthlyContributions(groupId).get();
+      final contribsSnapshot = await _firebaseService.monthlyContributionsByGroup(groupId).get();
       for (int i = 0; i < contribsSnapshot.docs.length; i += 450) {
         final batch = _firebaseService.firestore.batch();
         final chunk = contribsSnapshot.docs.skip(i).take(450);
@@ -409,7 +405,7 @@ class GroupRepository {
       }
 
       // 2. Delete all loans
-      final loansSnapshot = await _firebaseService.loans(groupId).get();
+      final loansSnapshot = await _firebaseService.loansByGroup(groupId).get();
       for (int i = 0; i < loansSnapshot.docs.length; i += 450) {
         final batch = _firebaseService.firestore.batch();
         final chunk = loansSnapshot.docs.skip(i).take(450);
@@ -475,8 +471,8 @@ class GroupRepository {
       final year = targetYear ?? now.year;
 
       final membersSnapshot = await _firebaseService.members(groupId).where('status', isEqualTo: MemberStatus.active.name).get();
-      final loansSnapshot = await _firebaseService.loans(groupId).where('status', isEqualTo: LoanStatus.active.name).get();
-      final existingContribsSnapshot = await _firebaseService.monthlyContributions(groupId).where('month', isEqualTo: month).where('year', isEqualTo: year).get();
+      final loansSnapshot = await _firebaseService.loansByGroup(groupId).where('status', isEqualTo: LoanStatus.active.name).get();
+      final existingContribsSnapshot = await _firebaseService.monthlyContributionsByGroup(groupId).where('month', isEqualTo: month).where('year', isEqualTo: year).get();
 
       final existingMemberIds = <String>{};
       for (final doc in existingContribsSnapshot.docs) {
@@ -535,7 +531,7 @@ class GroupRepository {
           'updatedAt': DateTime.now().toIso8601String(),
         };
 
-        batch.set(_firebaseService.monthlyContributions(groupId).doc(docId), contribution);
+        batch.set(_firebaseService.monthlyContributions.doc(docId), contribution);
         hasNew = true;
       }
 
@@ -584,7 +580,7 @@ class GroupRepository {
   Stream<List<Member>> watchMembers(String groupId, {bool activeOnly = true}) {
     Query query = _firebaseService.members(groupId);
     if (activeOnly) {
-      query = query.where('status', isEqualTo: 'active');
+      query = query.where('status', whereIn: ['ACTIVE', 'active', 'Active']);
     }
     return query.snapshots().map((snapshot) {
       final list = snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
@@ -596,7 +592,7 @@ class GroupRepository {
     return PerfLogger.traceAsync('getMembers($groupId, activeOnly=$activeOnly)', () async {
       Query query = _firebaseService.members(groupId);
       if (activeOnly) {
-        query = query.where('status', isEqualTo: 'active');
+        query = query.where('status', whereIn: ['ACTIVE', 'active', 'Active']);
       }
       final snapshot = await query.get();
       final list = snapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
@@ -606,7 +602,7 @@ class GroupRepository {
 
   Future<Member?> getMember(String groupId, String memberId) async {
     return PerfLogger.traceAsync('getMember($groupId, $memberId)', () async {
-      final doc = await _firebaseService.members(groupId).doc(memberId).get();
+      final doc = await _firebaseService.users.doc(memberId).get();
       if (!doc.exists) return null;
       return Member.fromJson(doc.data() as Map<String, dynamic>);
     });
@@ -625,13 +621,14 @@ class GroupRepository {
 
     final batch = _firebaseService.firestore.batch();
     
-    final memberRef = _firebaseService.members(member.groupId).doc(member.id);
+    final memberRef = _firebaseService.users.doc(member.id);
     batch.set(memberRef, member.toJson());
 
     final now = DateTime.now();
-    final activityRef = _firebaseService.activities(member.groupId).doc('ACT_${now.millisecondsSinceEpoch}_add');
+    final activityRef = _firebaseService.transactions.doc('ACT_${now.millisecondsSinceEpoch}_add');
     final activity = AppTransaction(
       id: 'ACT_${now.millisecondsSinceEpoch}_add',
+      groupId: member.groupId,
       memberId: member.id,
       memberName: member.name,
       type: TransactionType.adjustment,
@@ -658,13 +655,14 @@ class GroupRepository {
 
     final batch = _firebaseService.firestore.batch();
 
-    final memberRef = _firebaseService.members(member.groupId).doc(member.id);
+    final memberRef = _firebaseService.users.doc(member.id);
     batch.update(memberRef, member.toJson());
 
     final now = DateTime.now();
-    final activityRef = _firebaseService.activities(member.groupId).doc('ACT_${now.millisecondsSinceEpoch}_upd');
+    final activityRef = _firebaseService.transactions.doc('ACT_${now.millisecondsSinceEpoch}_upd');
     final activity = AppTransaction(
       id: 'ACT_${now.millisecondsSinceEpoch}_upd',
+      groupId: member.groupId,
       memberId: member.id,
       memberName: member.name,
       type: TransactionType.adjustment,
@@ -679,21 +677,22 @@ class GroupRepository {
   }
 
   Future<void> deactivateMember(String groupId, String memberId) async {
-    final doc = await _firebaseService.members(groupId).doc(memberId).get();
+    final doc = await _firebaseService.users.doc(memberId).get();
     final memberName = doc.exists ? (doc.data() as Map<String, dynamic>)['name'] ?? memberId : memberId;
 
     final batch = _firebaseService.firestore.batch();
 
-    final memberRef = _firebaseService.members(groupId).doc(memberId);
+    final memberRef = _firebaseService.users.doc(memberId);
     batch.update(memberRef, {
-      'status': MemberStatus.inactive.name,
+      'status': 'INACTIVE',
       'updatedAt': DateTime.now().toIso8601String(),
     });
 
     final now = DateTime.now();
-    final activityRef = _firebaseService.activities(groupId).doc('ACT_${now.millisecondsSinceEpoch}_del');
+    final activityRef = _firebaseService.transactions.doc('ACT_${now.millisecondsSinceEpoch}_del');
     final activity = AppTransaction(
       id: 'ACT_${now.millisecondsSinceEpoch}_del',
+      groupId: groupId,
       memberId: memberId,
       memberName: memberName,
       type: TransactionType.adjustment,
@@ -708,6 +707,6 @@ class GroupRepository {
   }
 
   Future<void> deleteMember(String groupId, String memberId) async {
-    await _firebaseService.members(groupId).doc(memberId).delete();
+    await _firebaseService.users.doc(memberId).delete();
   }
 }

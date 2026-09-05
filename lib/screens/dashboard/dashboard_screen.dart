@@ -80,6 +80,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: StreamBuilder<BachatGatGroup?>(
           stream: _groupStream,
           builder: (context, groupSnapshot) {
+            if (groupSnapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        'डेटा लोड करताना त्रुटी आली (Error loading dashboard data)',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${groupSnapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (groupSnapshot.connectionState == ConnectionState.waiting && !groupSnapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+
             final group = groupSnapshot.data;
             
             return SingleChildScrollView(

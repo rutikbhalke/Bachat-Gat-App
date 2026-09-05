@@ -98,17 +98,39 @@ class PendingMemberReport {
   final int month;
   final int year;
   final List<Loan> activeLoans;
+  final double expectedHafta;
+  final bool isHaftaPaid;
+  final double currentMonthInterest;
+  final double totalLoanPending;
+  final bool hasActiveLoan;
 
   PendingMemberReport({
     required this.member,
     required this.pendingHafta,
-    required this.pendingLoanPrincipal,
-    required this.pendingInterest,
-    required this.totalPending,
-    required this.month,
-    required this.year,
+    double? pendingLoanPrincipal,
+    double? pendingInterest,
+    double? totalPending,
+    int? month,
+    int? year,
     this.activeLoans = const [],
-  });
+    double? expectedHafta,
+    bool? isHaftaPaid,
+    double? currentMonthInterest,
+    double? totalLoanPending,
+    double? totalDue,
+    bool? hasActiveLoan,
+  })  : pendingLoanPrincipal = pendingLoanPrincipal ?? totalLoanPending ?? 0.0,
+        pendingInterest = pendingInterest ?? currentMonthInterest ?? 0.0,
+        totalPending = totalPending ?? totalDue ?? (pendingHafta + (pendingInterest ?? currentMonthInterest ?? 0.0)),
+        month = month ?? DateTime.now().month,
+        year = year ?? DateTime.now().year,
+        expectedHafta = expectedHafta ?? member.monthlyContribution,
+        isHaftaPaid = isHaftaPaid ?? (pendingHafta <= 0),
+        currentMonthInterest = currentMonthInterest ?? pendingInterest ?? 0.0,
+        totalLoanPending = totalLoanPending ?? pendingLoanPrincipal ?? 0.0,
+        hasActiveLoan = hasActiveLoan ?? activeLoans.isNotEmpty;
+
+  double get totalDue => totalPending;
 }
 
 class MemberLedgerEntry {

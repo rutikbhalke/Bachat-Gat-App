@@ -523,7 +523,7 @@ class BusinessFlowTestService {
       );
 
       // Verify closing outstanding is strictly ₹5,000
-      final lDocAfterM1 = await firebaseService.loans(testGroupId).doc(loan10kId).get();
+      final lDocAfterM1 = await firebaseService.loans.doc(loan10kId).get();
       final lDataAfterM1 = lDocAfterM1.data() as Map<String, dynamic>;
       final closingM1 = (lDataAfterM1['pendingPrincipal'] as num).toDouble();
 

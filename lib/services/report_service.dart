@@ -147,14 +147,14 @@ class ReportService {
       try {
         final futures = await Future.wait<QuerySnapshot>([
           _firebaseService
-              .monthlyContributions(groupId)
+              .monthlyContributionsByGroup(groupId)
               .where('memberId', isEqualTo: member.id)
               .where('month', isEqualTo: month)
               .where('year', isEqualTo: year)
               .limit(1)
               .get(),
           _firebaseService
-              .loans(groupId)
+              .loansByGroup(groupId)
               .where('memberId', isEqualTo: member.id)
               .get(),
           _firebaseService
@@ -223,11 +223,11 @@ class ReportService {
         final futures = await Future.wait<QuerySnapshot>([
           _firebaseService.members(groupId).get(),
           _firebaseService
-              .monthlyContributions(groupId)
+              .monthlyContributionsByGroup(groupId)
               .where('month', isEqualTo: month)
               .where('year', isEqualTo: year)
               .get(),
-          _firebaseService.loans(groupId).get(),
+          _firebaseService.loansByGroup(groupId).get(),
           _firebaseService.loanRepayments(groupId).get(),
         ]);
 
@@ -352,7 +352,7 @@ class ReportService {
     return PerfLogger.traceAsync('getPendingReport($targetMonth/$targetYear)', () async {
       debugPrint('[REPORT] PENDING DUES REPORT START: groupId=$groupId, month=$targetMonth, year=$targetYear');
       try {
-        Query membersQuery = _firebaseService.members(groupId).where('status', isEqualTo: 'active');
+        Query membersQuery = _firebaseService.members(groupId).where('status', whereIn: ['ACTIVE', 'active', 'Active']);
         if (memberId != null) {
           membersQuery = _firebaseService.members(groupId).where('id', isEqualTo: memberId);
         }
@@ -361,11 +361,11 @@ class ReportService {
         final futures = await Future.wait<QuerySnapshot>([
           membersQuery.get(),
           _firebaseService
-              .monthlyContributions(groupId)
+              .monthlyContributionsByGroup(groupId)
               .where('month', isEqualTo: targetMonth)
               .where('year', isEqualTo: targetYear)
               .get(),
-          _firebaseService.loans(groupId).get(),
+          _firebaseService.loansByGroup(groupId).get(),
           _firebaseService.loanRepayments(groupId).get(),
         ]);
 
@@ -379,25 +379,25 @@ class ReportService {
         debugPrint('[REPORT] PENDING LOANS QUERY END: ${loansSnapshot.docs.length} docs');
         debugPrint('[REPORT] PENDING REPAYMENTS QUERY END: ${repaymentsSnapshot.docs.length} docs');
 
-        final members = membersSnapshot.docs.map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>)).toList();
+        final allMembers = membersSnapshot.docs
+            .map((doc) => Member.fromJson(doc.data() as Map<String, dynamic>))
+            .toList();
 
-        final contributionsByMember = <String, MonthlyContribution>{};
+        final allContribs = <String, MonthlyContribution>{};
         for (var doc in contributionsSnapshot.docs) {
           try {
             final c = MonthlyContribution.fromJson(doc.data() as Map<String, dynamic>);
-            contributionsByMember[c.memberId] = c;
+            allContribs[c.memberId] = c;
           } catch (e) {
-            debugPrint('[REPORT ERROR] Parse contribution error ${doc.id}: $e');
+            debugPrint('[REPORT ERROR] Parse contribution error in pending report ${doc.id}: $e');
           }
         }
 
-        final loansByMember = <String, List<Loan>>{};
-        for (var doc in loansSnapshot.docs) {
-          try {
-            final l = Loan.fromJson(doc.data() as Map<String, dynamic>);
-            loansByMember.putIfAbsent(l.memberId, () => []).add(l);
-          } catch (e) {
-            debugPrint('[REPORT ERROR] Parse loan error ${doc.id}: $e');
+        final loans = loansSnapshot.docs.map((d) => Loan.fromJson(d.data() as Map<String, dynamic>)).toList();
+        final activeLoansByMember = <String, List<Loan>>{};
+        for (var loan in loans) {
+          if (loan.status == LoanStatus.active) {
+            activeLoansByMember.putIfAbsent(loan.memberId, () => []).add(loan);
           }
         }
 
@@ -407,44 +407,61 @@ class ReportService {
             final r = LoanRepayment.fromJson(doc.data() as Map<String, dynamic>);
             repaymentsByLoanId.putIfAbsent(r.loanId, () => []).add(r);
           } catch (e) {
-            debugPrint('[REPORT ERROR] Parse repayment error ${doc.id}: $e');
+            debugPrint('[REPORT ERROR] Parse repayment error in pending report ${doc.id}: $e');
           }
         }
 
-        final pendingList = <PendingMemberReport>[];
-        for (var member in members) {
-          final report = _computeMemberMonthlyReportFromData(
-            member: member,
-            month: targetMonth,
-            year: targetYear,
-            contribution: contributionsByMember[member.id],
-            memberLoans: loansByMember[member.id] ?? const [],
-            repaymentsByLoanId: repaymentsByLoanId,
-          );
+        final pendingItems = <PendingMemberReport>[];
 
-          if (report.hasPendingDues) {
-            final memberActiveLoans = (loansByMember[member.id] ?? const [])
-                .where((l) => l.status == LoanStatus.active)
-                .toList();
+        for (var member in allMembers) {
+          final contrib = allContribs[member.id];
+          final expectedHafta = CalculationUtils.calculateMemberMonthlyDue(member: member);
+          final actualPaid = contrib?.actualRegularPaid ?? 0.0;
+          final isHaftaPaid = contrib != null && (contrib.status == ContributionStatus.paid || actualPaid >= expectedHafta);
+          final pendingHafta = isHaftaPaid ? 0.0 : (expectedHafta - actualPaid > 0 ? expectedHafta - actualPaid : 0.0);
 
-            pendingList.add(PendingMemberReport(
+          final memberLoans = activeLoansByMember[member.id] ?? const [];
+          double currentMonthInterest = 0.0;
+          double totalLoanPending = 0.0;
+
+          for (var loan in memberLoans) {
+            final loanRepayments = repaymentsByLoanId[loan.id] ?? const [];
+            final periodRepayment = loanRepayments.where((r) => r.month == targetMonth && r.year == targetYear).firstOrNull;
+
+            final monthlyInterest = periodRepayment?.interestAmount ??
+                CalculationUtils.calculateMonthlyInterest(
+                  outstandingPrincipal: loan.pendingPrincipal,
+                  annualRate: loan.interestRate,
+                );
+
+            currentMonthInterest += monthlyInterest;
+            totalLoanPending += loan.pendingPrincipal;
+          }
+
+          final totalDue = pendingHafta + (memberLoans.isNotEmpty ? currentMonthInterest : 0.0);
+
+          // Only include if has pending hafta or has active loans
+          if (pendingHafta > 0 || totalDue > 0 || memberLoans.isNotEmpty) {
+            pendingItems.add(PendingMemberReport(
               member: member,
-              pendingHafta: report.pendingHafta,
-              pendingLoanPrincipal: report.closingPrincipal,
-              pendingInterest: report.pendingInterest,
-              totalPending: report.totalPending,
-              month: targetMonth,
-              year: targetYear,
-              activeLoans: memberActiveLoans,
+              expectedHafta: expectedHafta,
+              pendingHafta: pendingHafta,
+              isHaftaPaid: isHaftaPaid,
+              currentMonthInterest: currentMonthInterest,
+              totalLoanPending: totalLoanPending,
+              totalDue: totalDue,
+              hasActiveLoan: memberLoans.isNotEmpty,
             ));
           }
         }
 
-        debugPrint('[REPORT] PENDING REPORT CALCULATION END: ${pendingList.length} members with pending dues');
+        pendingItems.sort((a, b) => b.totalDue.compareTo(a.totalDue));
+
+        debugPrint('[REPORT] PENDING DUES CALCULATION END: ${pendingItems.length} pending items');
         debugPrint('[REPORT] UI STATE = SUCCESS (Pending Dues)');
 
-        _pendingReportCache[cacheKey] = pendingList;
-        return pendingList;
+        _pendingReportCache[cacheKey] = pendingItems;
+        return pendingItems;
       } catch (e, stack) {
         debugPrint('[REPORT ERROR] getPendingReport FAILED: $e\n$stack');
         rethrow;
@@ -452,7 +469,7 @@ class ReportService {
     });
   }
 
-  /// Generates LoanReportItem list with parallel bulk queries.
+  /// Generates LoanReportItem overview with caching.
   Future<List<LoanReportItem>> getLoanReport({
     required String groupId,
     LoanStatus? statusFilter,
@@ -467,9 +484,11 @@ class ReportService {
     return PerfLogger.traceAsync('getLoanReport(${statusFilter?.name ?? 'all'})', () async {
       debugPrint('[REPORT] LOANS OVERVIEW REPORT START: groupId=$groupId, statusFilter=$statusFilter');
       try {
-        Query loansQuery = _firebaseService.loans(groupId);
-        if (statusFilter != null) {
-          loansQuery = loansQuery.where('status', isEqualTo: statusFilter.name);
+        Query loansQuery = _firebaseService.loansByGroup(groupId);
+        if (statusFilter == LoanStatus.active) {
+          loansQuery = loansQuery.where('status', whereIn: ['ACTIVE', 'active', 'Active']);
+        } else if (statusFilter == LoanStatus.closed) {
+          loansQuery = loansQuery.where('status', whereIn: ['CLOSED', 'closed', 'Closed', 'PAID', 'paid']);
         }
 
         final futures = await Future.wait<QuerySnapshot>([
@@ -487,7 +506,12 @@ class ReportService {
         debugPrint('[REPORT] LOANS OVERVIEW REPAYMENTS END: ${repaymentsSnap.docs.length} docs');
 
         final loans = loansSnap.docs.map((d) => Loan.fromJson(d.data() as Map<String, dynamic>)).toList();
-        final membersMap = {for (var doc in membersSnap.docs) doc.id: Member.fromJson(doc.data() as Map<String, dynamic>)};
+        final membersMap = <String, Member>{};
+        for (var doc in membersSnap.docs) {
+          final m = Member.fromJson(doc.data() as Map<String, dynamic>);
+          membersMap[m.id] = m;
+          membersMap[doc.id] = m;
+        }
 
         final repaymentsByLoanId = <String, List<LoanRepayment>>{};
         for (var doc in repaymentsSnap.docs) {

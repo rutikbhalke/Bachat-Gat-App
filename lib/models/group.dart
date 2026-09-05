@@ -61,16 +61,34 @@ class BachatGatGroup {
         'updatedAt': updatedAt.toIso8601String(),
       };
 
+  Map<String, dynamic> toFirestore() => toJson();
+
   factory BachatGatGroup.fromJson(Map<String, dynamic> json) {
+    final now = DateTime.now();
+
+    DateTime parseDate(dynamic value) {
+      if (value == null) return now;
+      if (value is DateTime) return value;
+      if (value.runtimeType.toString().contains('Timestamp')) {
+        try {
+          return (value as dynamic).toDate() as DateTime;
+        } catch (_) {}
+      }
+      if (value is String && value.isNotEmpty) {
+        return DateTime.tryParse(value) ?? now;
+      }
+      return now;
+    }
+
     final rawFund = (json['totalFund'] as num?)?.toDouble() ?? 0.0;
     final rawSavings = (json['totalSavings'] as num?)?.toDouble() ?? 0.0;
     final rawOutstanding = (json['totalOutstandingLoans'] as num?)?.toDouble() ?? 0.0;
     final rawInterest = (json['totalInterestCollected'] as num?)?.toDouble() ?? 0.0;
 
     return BachatGatGroup(
-      id: json['id'] ?? '',
-      name: json['name'] ?? 'Chhatrapati Bachat Gat, Ghargaon Stand',
-      managerId: json['managerId'] ?? 'manager_001',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Chhatrapati Bachat Gat, Ghargaon Stand',
+      managerId: json['managerId']?.toString() ?? 'manager_001',
       monthlyTarget: (json['monthlyTarget'] as num?)?.toDouble() ?? 0.0,
       monthlyContributionAmount: (json['monthlyContributionAmount'] as num?)?.toDouble() ?? 1000.0,
       monthlyHaftaDay: (json['monthlyHaftaDay'] as num?)?.toInt() ?? 10,
@@ -78,8 +96,9 @@ class BachatGatGroup {
       totalSavings: rawSavings >= 0 ? rawSavings : 0.0,
       totalOutstandingLoans: rawOutstanding >= 0 ? rawOutstanding : 0.0,
       totalInterestCollected: rawInterest >= 0 ? rawInterest : 0.0,
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: parseDate(json['createdAt']),
+      updatedAt: parseDate(json['updatedAt']),
     );
   }
 }
+

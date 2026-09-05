@@ -1,29 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Groups and authorized sub-collections
+    // Root Collections (Unified Data Contract for Web and Mobile)
     match /groups/{groupId} {
       allow read, write: if true;
+    }
 
-      match /members/{memberId} {
-        allow read, write: if true;
-      }
+    match /users/{uid} {
+      allow read, write: if true;
+    }
 
-      match /monthly_contributions/{contributionId} {
-        allow read, write: if true;
-      }
+    match /monthlyContributions/{contributionId} {
+      allow read, write: if true;
+    }
 
-      match /loans/{loanId} {
-        allow read, write: if true;
-      }
+    match /loans/{loanId} {
+      allow read, write: if true;
+    }
 
-      match /loan_repayments/{repaymentId} {
-        allow read, write: if true;
-      }
+    match /repayments/{repaymentId} {
+      allow read, write: if true;
+    }
 
-      match /activities/{activityId} {
-        allow read, write: if true;
-      }
+    match /transactions/{transactionId} {
+      allow read, write: if true;
     }
   }
 }
